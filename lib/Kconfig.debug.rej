@@ -1,0 +1,10 @@
+--- lib/Kconfig.debug
++++ lib/Kconfig.debug
+@@ -1774,7 +1774,6 @@
+ config INTERVAL_TREE_TEST
+ 	tristate "Interval tree test"
+ 	depends on m && DEBUG_KERNEL
+-	select INTERVAL_TREE
+ 	help
+ 	  A benchmark measuring the performance of the interval tree library
+ 

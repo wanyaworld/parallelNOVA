@@ -1,0 +1,23 @@
+--- lib/Kconfig
++++ lib/Kconfig
+@@ -347,20 +347,6 @@
+ config BTREE
+ 	bool
+ 
+-config INTERVAL_TREE
+-	bool
+-	help
+-	  Simple, embeddable, interval-tree. Can find the start of an
+-	  overlapping range in log(n) time and then iterate over all
+-	  overlapping nodes. The algorithm is implemented as an
+-	  augmented rbtree.
+-
+-	  See:
+-
+-		Documentation/rbtree.txt
+-
+-	  for more information.
+-
+ config RADIX_TREE_MULTIORDER
+ 	bool
+ 

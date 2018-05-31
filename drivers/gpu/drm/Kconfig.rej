@@ -1,0 +1,18 @@
+--- drivers/gpu/drm/Kconfig
++++ drivers/gpu/drm/Kconfig
+@@ -163,7 +163,6 @@
+ 	select HWMON
+ 	select BACKLIGHT_CLASS_DEVICE
+ 	select BACKLIGHT_LCD_SUPPORT
+-	select INTERVAL_TREE
+ 	help
+ 	  Choose this option if you have an ATI Radeon graphics card.  There
+ 	  are both PCI and AGP versions.  You don't need to choose this to
+@@ -183,7 +182,6 @@
+ 	select HWMON
+ 	select BACKLIGHT_CLASS_DEVICE
+ 	select BACKLIGHT_LCD_SUPPORT
+-	select INTERVAL_TREE
+ 	help
+ 	  Choose this option if you have a recent AMD Radeon graphics card.
+ 
