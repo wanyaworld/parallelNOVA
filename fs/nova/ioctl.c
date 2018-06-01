@@ -156,6 +156,10 @@ setversion_out:
 		nova_print_free_lists(sb);
 		return 0;
 	}
+	case NOVA_ENABLE_MEASURE_TIMING: {
+		nova_enable_measure_timing();
+		return 0;
+	}
 	default:
 		return -ENOTTY;
 	}

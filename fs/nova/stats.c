@@ -132,6 +132,7 @@ const char *Timingstring[TIMING_NUM] = {
 	"evict_inode",
 	"test_perf",
 	"wprotect",
+	"inode_lock",
 
 	/* Mmap */
 	"=============== MMap operations ================",
@@ -692,4 +693,10 @@ void nova_print_free_lists(struct super_block *sb)
 			 free_list->free_data_count,
 			 free_list->freed_data_pages);
 	}
+}
+
+void nova_enable_measure_timing(void)
+{
+	measure_timing = 1;
+	nova_info("pNOVA_debug: measure_timing is set\n");
 }

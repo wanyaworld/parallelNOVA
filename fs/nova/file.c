@@ -846,17 +846,17 @@ ssize_t nova_cow_file_write(struct file *filp,
 	if (len == 0)
 		return 0;
 
-	NOVA_START_TIMING(cow_write_t, time);
 
 	sb_start_write(inode->i_sb);
+	NOVA_START_TIMING(inode_lock_t, time);
 	inode_lock(inode);
+	NOVA_END_TIMING(inode_lock_t, time);
 
 	ret = do_nova_cow_file_write(filp, buf, len, ppos);
 
 	inode_unlock(inode);
 	sb_end_write(inode->i_sb);
 
-	NOVA_END_TIMING(cow_write_t, time);
 	return ret;
 }
 
