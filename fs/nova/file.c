@@ -646,7 +646,7 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	int try_inplace = 0;
 	u64 epoch_id;
 	u32 time;
-
+	struct range_lock nova_inode_lock;
 
 	if (len == 0)
 		return 0;
@@ -679,6 +679,9 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	num_blocks = ((count + offset - 1) >> sb->s_blocksize_bits) + 1;
 	total_blocks = num_blocks;
 	start_blk = pos >> sb->s_blocksize_bits;
+
+	range_lock_init(&nova_inode_lock, start_blk, start_blk + num_blocks - 1);
+	range_write_lock(&(sih->range_lock_tree), &nova_inode_lock);
 
 	if (nova_check_overlap_vmas(sb, sih, start_blk, num_blocks)) {
 		nova_dbgv("COW write overlaps with vma: inode %lu, pgoff %lu, %lu blocks\n",
@@ -828,6 +831,8 @@ out:
 	if (try_inplace)
 		return do_nova_inplace_file_write(filp, buf, len, ppos);
 
+	range_write_unlock(&(sih->range_lock_tree), &nova_inode_lock);
+	
 	return ret;
 }
 
@@ -846,15 +851,14 @@ ssize_t nova_cow_file_write(struct file *filp,
 	if (len == 0)
 		return 0;
 
-
 	sb_start_write(inode->i_sb);
-	NOVA_START_TIMING(inode_lock_t, time);
-	inode_lock(inode);
-	NOVA_END_TIMING(inode_lock_t, time);
+	//NOVA_START_TIMING(inode_lock_t, time);
+	//inode_lock(inode);
+	//NOVA_END_TIMING(inode_lock_t, time);
 
 	ret = do_nova_cow_file_write(filp, buf, len, ppos);
 
-	inode_unlock(inode);
+	//inode_unlock(inode);
 	sb_end_write(inode->i_sb);
 
 	return ret;
