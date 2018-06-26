@@ -591,7 +591,6 @@ static void nova_init_inode(struct inode *inode, struct nova_inode *pi)
 	pi->deleted = 0;
 	pi->delete_epoch_id = 0;
 	nova_get_inode_flags(inode, pi);
-	range_lock_tree_init(&(pi->range_lock_tree));
 
 	if (S_ISCHR(inode->i_mode) || S_ISBLK(inode->i_mode))
 		pi->dev.rdev = cpu_to_le32(inode->i_rdev);
