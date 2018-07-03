@@ -20,6 +20,7 @@
 #include <linux/uaccess.h>
 #include <linux/falloc.h>
 #include <asm/mman.h>
+#include <asm/atomic.h>
 #include "nova.h"
 #include "inode.h"
 
@@ -698,15 +699,19 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	if (ret)
 		goto out;
 
+    inode_lock(inode);
 	inode->i_ctime = inode->i_mtime = current_time(inode);
+    inode_unlock(inode);
 	time = current_time(inode).tv_sec;
 
 	nova_dbgv("%s: inode %lu, offset %lld, count %lu\n",
 			__func__, inode->i_ino,	pos, count);
 
 	epoch_id = nova_get_epoch_id(sb);
+    inode_lock(inode);
 	update.tail = sih->log_tail;
 	update.alter_tail = sih->alter_log_tail;
+    inode_unlock(inode);
 	while (num_blocks > 0) {
 		offset = pos & (nova_inode_blk_size(sih) - 1);
 		start_blk = pos >> sb->s_blocksize_bits;
@@ -755,18 +760,25 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 			if (ret)
 				goto out;
 		}
-
+        /* To do: update sih->i_size HERE to make file_size valid
+         *          We also need synchronization */
+        inode_lock(inode);
 		if (pos + copied > inode->i_size)
 			file_size = cpu_to_le64(pos + copied);
 		else
 			file_size = cpu_to_le64(inode->i_size);
+        sih->i_size = file_size;
+        inode_unlock(inode);
 
 		nova_init_file_write_entry(sb, sih, &entry_data, epoch_id,
 					start_blk, allocated, blocknr, time,
 					file_size);
 
+        inode_lock(inode);
 		ret = nova_append_file_write_entry(sb, pi, inode,
 					&entry_data, &update);
+        inode_unlock(inode);
+
 		if (ret) {
 			nova_dbg("%s: append inode entry failed\n", __func__);
 			ret = -ENOSPC;
@@ -799,15 +811,19 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	sih->i_blocks += (total_blocks << (data_bits - sb->s_blocksize_bits));
 
 	nova_memunlock_inode(sb, pi);
+    inode_lock(inode);
 	nova_update_inode(sb, inode, pi, &update, 1);
+    inode_unlock(inode);
 	nova_memlock_inode(sb, pi);
 
 	/* Free the overlap blocks after the write is committed */
+    inode_lock(inode);
 	ret = nova_reassign_file_tree(sb, sih, begin_tail);
 	if (ret)
 		goto out;
 
 	inode->i_blocks = sih->i_blocks;
+    inode_unlock(inode);
 
 	ret = written;
 	NOVA_STATS_ADD(cow_write_breaks, step);
@@ -816,7 +832,7 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	*ppos = pos;
 	if (pos > inode->i_size) {
 		i_size_write(inode, pos);
-		sih->i_size = pos;
+		//sih->i_size = pos;
 	}
 
 	sih->trans_id++;
