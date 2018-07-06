@@ -763,10 +763,10 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
         /* To do: update sih->i_size HERE to make file_size valid
          *          We also need synchronization */
         inode_lock(inode);
-		if (pos + copied > inode->i_size)
+		if (pos + copied > sih->i_size)
 			file_size = cpu_to_le64(pos + copied);
 		else
-			file_size = cpu_to_le64(inode->i_size);
+			file_size = cpu_to_le64(sih->i_size);
         sih->i_size = file_size;
         inode_unlock(inode);
 
@@ -808,10 +808,10 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	}
 
 	data_bits = blk_type_to_shift[sih->i_blk_type];
+    inode_lock(inode);
 	sih->i_blocks += (total_blocks << (data_bits - sb->s_blocksize_bits));
 
 	nova_memunlock_inode(sb, pi);
-    inode_lock(inode);
 	nova_update_inode(sb, inode, pi, &update, 1);
     inode_unlock(inode);
 	nova_memlock_inode(sb, pi);
@@ -830,12 +830,14 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	nova_dbgv("blocks: %lu, %lu\n", inode->i_blocks, sih->i_blocks);
 
 	*ppos = pos;
+    inode_lock(inode);
 	if (pos > inode->i_size) {
 		i_size_write(inode, pos);
 		//sih->i_size = pos;
 	}
 
 	sih->trans_id++;
+    inode_unlock(inode);
 out:
 	if (ret < 0)
 		nova_cleanup_incomplete_write(sb, sih, blocknr, allocated,
