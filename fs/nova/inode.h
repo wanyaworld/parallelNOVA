@@ -7,7 +7,7 @@ struct nova_inode;
 #include "super.h"
 #include "log.h"
 #include <linux/range_lock.h>
-
+#include <asm-generic/qspinlock.h>
 enum nova_new_inode_type {
 	TYPE_CREATE = 0,
 	TYPE_MKNOD,
@@ -101,6 +101,15 @@ struct nova_inode_info_header {
 	u64 alter_log_tail;		/* Alternate log tail pointer */
 	u8  i_blk_type;
 	struct range_lock_tree range_lock_tree;	/* Per-inode range lock tree */
+
+	/* for queue lock */
+	struct qspinlock time_lock;
+	struct qspinlock tail_lock;
+	struct qspinlock size_lock;
+	struct qspinlock log_lock;
+	struct qspinlock block_lock;
+	struct qspinlock tree_lock;
+		
 };
 
 /* For rebuild purpose, temporarily store pi infomation */
@@ -243,7 +252,10 @@ static inline void nova_update_inode(struct super_block *sb,
 
 	sih->log_tail = update->tail;
 	sih->alter_log_tail = update->alter_tail;
+
+    /* To do: Postpone nvm tail update for parallelism */
 	nova_update_tail(pi, update->tail);
+
 	if (metadata_csum)
 		nova_update_alter_tail(pi, update->alter_tail);
 
