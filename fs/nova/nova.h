@@ -46,6 +46,8 @@
 #include <linux/version.h>
 #include <linux/pfn_t.h>
 #include <linux/pagevec.h>
+#include <asm-generic/qspinlock.h>
+#include <linux/range_lock.h>
 
 #include "nova_def.h"
 #include "stats.h"

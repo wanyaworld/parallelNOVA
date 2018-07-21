@@ -62,6 +62,13 @@ void nova_init_header(struct super_block *sb,
 	sih->alter_log_tail = 0;
 	sih->i_blk_type = NOVA_DEFAULT_BLOCK_TYPE;
 	range_lock_tree_init(&(sih->range_lock_tree));
+
+	time_lock.val.counter=__ARCH_SPIN_LOCK_UNLOCKED;
+	tail_lock.val.counter=__ARCH_SPIN_LOCK_UNLOCKED;
+	size_lock.val.counter=__ARCH_SPIN_LOCK_UNLOCKED;
+	log_lock.val.counter=__ARCH_SPIN_LOCK_UNLOCKED;
+	block_lock.val.counter=__ARCH_SPIN_LOCK_UNLOCKED;
+	tree_lock.val.counter=__ARCH_SPIN_LOCK_UNLOCKED;
 }
 
 static inline void set_scan_bm(unsigned long bit,
