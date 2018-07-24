@@ -39,6 +39,10 @@ Module.symvers
 *.dwo
 *.su
 *.c.[012]*.*
+kim.log
+compile.sh
+tools/perf/a.txt
+a.txt
 
 #
 # Top-level generic files

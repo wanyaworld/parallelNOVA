@@ -102,8 +102,9 @@ struct nova_inode_info_header {
 	u8  i_blk_type;
 	struct range_lock_tree range_lock_tree;	/* Per-inode range lock tree */
 
-	/* for queue lock */
+	/* For synchronization of write threads */
 	struct qspinlock time_lock;
+	struct qspinlock alloc_lock;
 	struct qspinlock tail_lock;
 	struct qspinlock size_lock;
 	struct qspinlock log_lock;

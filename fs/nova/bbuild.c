@@ -64,6 +64,7 @@ void nova_init_header(struct super_block *sb,
 	range_lock_tree_init(&(sih->range_lock_tree));
 
 	sih->time_lock.val.counter=0;
+	sih->alloc_lock.val.counter=0;
 	sih->tail_lock.val.counter=0;
 	sih->size_lock.val.counter=0;
 	sih->log_lock.val.counter=0;
