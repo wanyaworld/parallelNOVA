@@ -980,6 +980,8 @@ void nova_init_file_write_entry(struct super_block *sb,
 	u64 size);
 int nova_reassign_file_tree(struct super_block *sb,
 	struct nova_inode_info_header *sih, u64 begin_tail);
+int nova_reassign_file_tree_parallel(struct super_block *sb,
+	struct nova_inode_info_header *sih, u64 begin_tail, u64 my_tail);
 unsigned long nova_check_existing_entry(struct super_block *sb,
 	struct inode *inode, unsigned long num_blocks, unsigned long start_blk,
 	struct nova_file_write_entry **ret_entry,
