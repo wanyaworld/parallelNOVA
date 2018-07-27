@@ -452,6 +452,71 @@ static int nova_append_log_entry(struct super_block *sb,
 	return 0;
 }
 
+static int nova_append_log_entry_parallel(struct super_block *sb,
+	struct nova_inode *pi, struct inode *inode,
+	struct nova_inode_info_header *sih,
+	struct nova_log_entry_info *entry_info,
+    u64 old_tail)
+{
+	void *entry, *alter_entry;
+	enum nova_entry_type type = entry_info->type;
+	struct nova_inode_update *update = entry_info->update;
+	u64 tail, alter_tail;
+	u64 curr_p, alter_curr_p;
+	size_t size;
+	int extended = 0;
+
+	if (type == DIR_LOG)
+		size = entry_info->file_size;
+	else
+		size = nova_get_log_entry_size(sb, type);
+
+	tail = update->tail;
+	alter_tail = update->alter_tail;
+
+    /* We do not call nova_get_append_head,
+     * since we already know where to write log,
+     * i.e., old_tail
+     */
+
+    curr_p = old_tail;
+
+	if (curr_p == 0)
+		return -ENOSPC;
+
+	nova_dbg_verbose("%s: inode %lu attr change entry @ 0x%llx\n",
+				__func__, sih->ino, curr_p);
+
+	entry = nova_get_block(sb, curr_p);
+	/* inode is already updated with attr */
+	nova_memunlock_range(sb, entry, size);
+	memset(entry, 0, size);
+	nova_update_log_entry(sb, inode, entry, entry_info);
+	nova_inc_page_num_entries(sb, curr_p);
+	nova_memlock_range(sb, entry, size);
+	update->curr_entry = curr_p;
+	update->tail = curr_p + size;
+
+	if (metadata_csum) {
+		alter_curr_p = nova_get_append_head(sb, pi, sih, alter_tail,
+						size, ALTER_LOG, 0, &extended);
+		if (alter_curr_p == 0)
+			return -ENOSPC;
+
+		alter_entry = nova_get_block(sb, alter_curr_p);
+		nova_memunlock_range(sb, alter_entry, size);
+		memset(alter_entry, 0, size);
+		nova_update_log_entry(sb, inode, alter_entry, entry_info);
+		nova_memlock_range(sb, alter_entry, size);
+
+		update->alter_entry = alter_curr_p;
+		update->alter_tail = alter_curr_p + size;
+	}
+
+	entry_info->curr_p = curr_p;
+	return 0;
+}
+
 int nova_inplace_update_log_entry(struct super_block *sb,
 	struct inode *inode, void *entry,
 	struct nova_log_entry_info *entry_info)
@@ -898,6 +963,39 @@ int nova_append_file_write_entry(struct super_block *sb, struct nova_inode *pi,
 	entry_info.inplace = 0;
 
 	ret = nova_append_log_entry(sb, pi, inode, sih, &entry_info);
+	if (ret)
+		nova_err(sb, "%s failed\n", __func__);
+
+	NOVA_END_TIMING(append_file_entry_t, append_time);
+	return ret;
+}
+
+/*
+ * Append a nova_file_write_entry to the current nova_inode_log_page.
+ * We call nova_append_log_entry_parallel.
+ */
+int nova_append_file_write_entry_parallel(struct super_block *sb, struct nova_inode *pi,
+	struct inode *inode, struct nova_file_write_entry *data,
+	struct nova_inode_update *update, u64 old_tail)
+{
+	struct nova_inode_info *si = NOVA_I(inode);
+	struct nova_inode_info_header *sih = &si->header;
+	struct nova_log_entry_info entry_info;
+	timing_t append_time;
+	int ret;
+
+	NOVA_START_TIMING(append_file_entry_t, append_time);
+
+	nova_update_entry_csum(data);
+
+	entry_info.type = FILE_WRITE;
+	entry_info.update = update;
+	entry_info.data = data;
+	entry_info.epoch_id = data->epoch_id;
+	entry_info.trans_id = data->trans_id;
+	entry_info.inplace = 0;
+
+	ret = nova_append_log_entry_parallel(sb, pi, inode, sih, &entry_info, old_tail);
 	if (ret)
 		nova_err(sb, "%s failed\n", __func__);
 

@@ -648,6 +648,9 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	u64 epoch_id;
 	u32 time;
 	struct range_lock nova_inode_lock;
+    u64 curr_p, old_tail;
+    size_t log_entry_size;
+    int extended = 0;
 
 	if (len == 0)
 		return 0;
@@ -708,11 +711,18 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 			__func__, inode->i_ino,	pos, count);
 
 	epoch_id = nova_get_epoch_id(sb);
-    queued_spin_lock(&sih->tail_lock);
-	update.tail = sih->log_tail;
-	update.alter_tail = sih->alter_log_tail;
-    queued_spin_unlock(&sih->tail_lock);
+
 	while (num_blocks > 0) {
+        queued_spin_lock(&sih->tail_lock);
+	    old_tail = update.tail = sih->log_tail;
+	    update.alter_tail = sih->alter_log_tail;
+        /* Get the size of FILE_WRITE entry */
+        log_entry_size = nova_get_log_entry_size(sb, 1);
+        curr_p = nova_get_append_head(sb, pi, sih, update.tail, size, MAIN_LOG, 1, &extended);
+        sih->log_tail = curr_p;
+        update.tail = curr_p;
+        queued_spin_unlock(&sih->tail_lock);
+
 		offset = pos & (nova_inode_blk_size(sih) - 1);
 		start_blk = pos >> sb->s_blocksize_bits;
 
@@ -777,8 +787,8 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 					start_blk, allocated, blocknr, time,
 					file_size);
 
-		ret = nova_append_file_write_entry(sb, pi, inode,
-					&entry_data, &update);
+		ret = nova_append_file_write_entry_parallel(sb, pi, inode,
+					&entry_data, &update, old_tail);
     queued_spin_unlock(&sih->log_lock);
 
 		if (ret) {
@@ -825,7 +835,7 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	/* Free the overlap blocks after the write is committed */
     //inode_lock(inode);
     queued_spin_lock(&sih->tree_lock);
-	ret = nova_reassign_file_tree(sb, sih, begin_tail);
+	ret = nova_reassign_file_tree_parallel(sb, sih, begin_tail, update.tail);
 	if (ret){
         queued_spin_unlock(&sih->tree_lock);
 	    goto out;
