@@ -43,6 +43,7 @@ kim.log
 compile.sh
 tools/perf/a.txt
 a.txt
+q
 
 #
 # Top-level generic files
