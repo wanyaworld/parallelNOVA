@@ -719,7 +719,7 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 		/* Get the size of FILE_WRITE entry */
 		log_entry_size = nova_get_log_entry_size(sb, 1);
 		curr_p = nova_get_append_head(sb, pi, sih, update.tail, log_entry_size, MAIN_LOG, 1, &extended);
-		sih->log_tail = new_tail = curr_p + size;
+		sih->log_tail = new_tail = curr_p + log_entry_size;
 		queued_spin_unlock(&sih->tail_lock);
 
 		offset = pos & (nova_inode_blk_size(sih) - 1);
