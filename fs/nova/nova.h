@@ -575,6 +575,12 @@ static inline unsigned long get_nvmm(struct super_block *sb,
 		nova_print_nova_log(sb, sih);
 		NOVA_ASSERT(0);
 	}
+		/*struct nova_sb_info *sbi = NOVA_SB(sb);
+		u64 curr;
+		curr = nova_get_addr_off(sbi, entry);
+		nova_dbg("Entry CORRECT: inode %lu, curr 0x%llx, pgoff %lu, entry pgoff %llu, num %u\n",
+			sih->ino,
+			curr, pgoff, entry->pgoff, entry->num_pages);*/
 
 	return (unsigned long) (entry->block >> PAGE_SHIFT) + pgoff
 		- entry->pgoff;

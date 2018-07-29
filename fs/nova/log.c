@@ -495,7 +495,8 @@ static int nova_append_log_entry_parallel(struct super_block *sb,
 	nova_inc_page_num_entries(sb, curr_p);
 	nova_memlock_range(sb, entry, size);
 	update->curr_entry = curr_p;
-	update->tail = curr_p + size;
+    /* We alreday updated update->tail */
+	//update->tail = curr_p + size;
 
 	if (metadata_csum) {
 		alter_curr_p = nova_get_append_head(sb, pi, sih, alter_tail,

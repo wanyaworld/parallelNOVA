@@ -251,7 +251,9 @@ static inline void nova_update_inode(struct super_block *sb,
 	struct nova_inode_info *si = NOVA_I(inode);
 	struct nova_inode_info_header *sih = &si->header;
 
-	sih->log_tail = update->tail;
+    /* We do not need to update sih->log_tail,
+        because we already did it */
+	//sih->log_tail = update->tail;
 	sih->alter_log_tail = update->alter_tail;
 
     /* To do: Postpone nvm tail update for parallelism */
