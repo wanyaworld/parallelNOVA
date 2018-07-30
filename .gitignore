@@ -44,6 +44,8 @@ compile.sh
 tools/perf/a.txt
 a.txt
 q
+tags
+fs/nova/tags
 
 #
 # Top-level generic files
@@ -57,6 +59,7 @@ q
 /vmlinuz
 /System.map
 /Module.markers
+/fs/nova/tags
 
 #
 # Debian directory (make deb-pkg)

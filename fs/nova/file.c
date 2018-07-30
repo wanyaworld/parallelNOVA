@@ -702,9 +702,9 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	if (ret)
 		goto out;
 
-	queued_spin_lock(&sih->time_lock);
+	//queued_spin_lock(&sih->time_lock);
 	inode->i_ctime = inode->i_mtime = current_time(inode);
-	queued_spin_unlock(&sih->time_lock);
+	//queued_spin_unlock(&sih->time_lock);
 	time = current_time(inode).tv_sec;
 
 	nova_dbgv("%s: inode %lu, offset %lld, count %lu\n",
@@ -726,11 +726,11 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 		start_blk = pos >> sb->s_blocksize_bits;
 
 		/* don't zero-out the allocated blocks */
-		queued_spin_lock(&sih->alloc_lock);
+		//queued_spin_lock(&sih->alloc_lock);
 		allocated = nova_new_data_blocks(sb, sih, &blocknr, start_blk,
 				num_blocks, ALLOC_NO_INIT, ANY_CPU,
 				ALLOC_FROM_HEAD);
-		queued_spin_unlock(&sih->alloc_lock);
+		//queued_spin_unlock(&sih->alloc_lock);
 
 		nova_dbg_verbose("%s: alloc %d blocks @ %lu\n", __func__,
 				allocated, blocknr);
