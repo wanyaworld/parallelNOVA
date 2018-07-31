@@ -75,6 +75,62 @@ static int nova_execute_invalidate_reassign_logentry(struct super_block *sb,
 	return 0;
 }
 
+static int nova_execute_invalidate_reassign_logentry_parallel(struct super_block *sb,
+	void *entry, enum nova_entry_type type, int reassign,
+	unsigned int num_free, struct nova_inode_info_header *sih)
+{
+	struct nova_file_write_entry *fw_entry;
+	int invalid = 0;
+
+	switch (type) {
+	case FILE_WRITE:
+		fw_entry = (struct nova_file_write_entry *)entry;
+		if (reassign)
+			fw_entry->reassigned = 1;
+		if (num_free)
+			fw_entry->invalid_pages += num_free;
+		if (fw_entry->invalid_pages == fw_entry->num_pages)
+			invalid = 1;
+		break;
+	case DIR_LOG:
+		if (reassign) {
+			((struct nova_dentry *)entry)->reassigned = 1;
+		} else {
+			((struct nova_dentry *)entry)->invalid = 1;
+			invalid = 1;
+		}
+		break;
+	case SET_ATTR:
+		((struct nova_setattr_logentry *)entry)->invalid = 1;
+		invalid = 1;
+		break;
+	case LINK_CHANGE:
+		((struct nova_link_change_entry *)entry)->invalid = 1;
+		invalid = 1;
+		break;
+	case MMAP_WRITE:
+		((struct nova_mmap_entry *)entry)->invalid = 1;
+		invalid = 1;
+		break;
+	case SNAPSHOT_INFO:
+		((struct nova_snapshot_info_entry *)entry)->deleted = 1;
+		invalid = 1;
+		break;
+	default:
+		break;
+	}
+
+	if (invalid) {
+		u64 addr = nova_get_addr_off(NOVA_SB(sb), entry);
+        queued_spin_lock(&sih->inval_lock);
+		nova_inc_page_invalid_entries(sb, addr);
+        queued_spin_unlock(&sih->inval_lock);
+	}
+
+	nova_update_entry_csum(entry);
+	return 0;
+}
+
 static int nova_invalidate_reassign_logentry(struct super_block *sb,
 	void *entry, enum nova_entry_type type, int reassign,
 	unsigned int num_free)
@@ -83,6 +139,20 @@ static int nova_invalidate_reassign_logentry(struct super_block *sb,
 
 	nova_execute_invalidate_reassign_logentry(sb, entry, type,
 						reassign, num_free);
+	nova_update_alter_entry(sb, entry);
+	nova_memlock_range(sb, entry, CACHELINE_SIZE);
+
+	return 0;
+}
+
+static int nova_invalidate_reassign_logentry_parallel(struct super_block *sb,
+	void *entry, enum nova_entry_type type, int reassign,
+	unsigned int num_free, struct nova_inode_info_header *sih)
+{
+	nova_memunlock_range(sb, entry, CACHELINE_SIZE);
+
+	nova_execute_invalidate_reassign_logentry_parallel(sb, entry, type,
+						reassign, num_free, sih);
 	nova_update_alter_entry(sb, entry);
 	nova_memlock_range(sb, entry, CACHELINE_SIZE);
 
@@ -123,6 +193,30 @@ static inline int nova_invalidate_write_entry(struct super_block *sb,
 
 	return nova_invalidate_reassign_logentry(sb, entry, FILE_WRITE,
 							reassign, num_free);
+}
+
+static inline int nova_invalidate_write_entry_parallel(struct super_block *sb,
+	struct nova_file_write_entry *entry, int reassign,
+	unsigned int num_free, struct nova_inode_info_header *sih)
+{
+	struct nova_file_write_entry *entryc, entry_copy;
+
+	if (!entry)
+		return 0;
+
+	if (metadata_csum == 0)
+		entryc = entry;
+	else {
+		entryc = &entry_copy;
+		if (!nova_verify_entry_csum(sb, entry, entryc))
+			return -EIO;
+	}
+
+	if (num_free == 0 && entryc->reassigned == 1)
+		return 0;
+
+	return nova_invalidate_reassign_logentry_parallel(sb, entry, FILE_WRITE,
+							reassign, num_free, sih);
 }
 
 unsigned int nova_free_old_entry(struct super_block *sb,

@@ -592,7 +592,7 @@ int nova_inode_log_fast_gc(struct super_block *sb,
 	nova_dbgv("%s: log head 0x%llx, tail 0x%llx\n",
 				__func__, curr, curr_tail);
 	while (1) {
-        //break;
+        break;
 		if (curr >> PAGE_SHIFT == sih->log_tail >> PAGE_SHIFT) {
 			/* Don't recycle tail page */
 			if (found_head == 0) {

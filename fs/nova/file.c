@@ -781,14 +781,14 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 		sih->i_size = file_size;
 		queued_spin_unlock(&sih->size_lock);
 
-		queued_spin_lock(&sih->log_lock);
+		//queued_spin_lock(&sih->log_lock);
 		nova_init_file_write_entry(sb, sih, &entry_data, epoch_id,
 				start_blk, allocated, blocknr, time,
 				file_size);
 
 		ret = nova_append_file_write_entry_parallel(sb, pi, inode,
 				&entry_data, &update, curr_p);
-		queued_spin_unlock(&sih->log_lock);
+		//queued_spin_unlock(&sih->log_lock);
 
 		if (ret) {
 			nova_dbg("%s: append inode entry failed\n", __func__);

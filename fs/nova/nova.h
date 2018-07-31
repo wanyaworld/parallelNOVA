@@ -778,12 +778,16 @@ static inline void nova_inc_page_invalid_entries(struct super_block *sb,
 	curr_page->page_tail.invalid_entries++;
 	if (curr_page->page_tail.invalid_entries >
 			curr_page->page_tail.num_entries) {
-		nova_dbg("Page 0x%llx has %u entries, %u invalid\n",
+		nova_dbg("Sad: Page 0x%llx has %u entries, %u invalid\n",
 				curr,
 				curr_page->page_tail.num_entries,
 				curr_page->page_tail.invalid_entries);
 		nova_print_log_entry(sb, old_curr);
 	}
+		nova_dbg("Good: Page 0x%llx has %u entries, %u invalid\n",
+				curr,
+				curr_page->page_tail.num_entries,
+				curr_page->page_tail.invalid_entries);
 
 	nova_flush_buffer(&curr_page->page_tail,
 				sizeof(struct nova_inode_page_tail), 0);
