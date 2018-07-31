@@ -586,7 +586,9 @@ static int nova_append_log_entry_parallel(struct super_block *sb,
 	nova_memunlock_range(sb, entry, size);
 	memset(entry, 0, size);
 	nova_update_log_entry(sb, inode, entry, entry_info);
+    queued_spin_lock(&sih->entry_lock);
 	nova_inc_page_num_entries(sb, curr_p);
+    queued_spin_unlock(&sih->entry_lock);
 	nova_memlock_range(sb, entry, size);
 	update->curr_entry = curr_p;
     /* We alreday updated update->tail */
@@ -1003,6 +1005,71 @@ int nova_assign_write_entry(struct super_block *sb,
 					entryc->epoch_id);
 
 	nova_invalidate_write_entry(sb, start_old_entry, 1, 0);
+
+out:
+	NOVA_END_TIMING(assign_t, assign_time);
+
+	return ret;
+}
+
+int nova_assign_write_entry_parallel(struct super_block *sb,
+	struct nova_inode_info_header *sih,
+	struct nova_file_write_entry *entry,
+	struct nova_file_write_entry *entryc,
+	bool free)
+{
+	struct nova_file_write_entry *old_entry;
+	struct nova_file_write_entry *start_old_entry = NULL;
+	void **pentry;
+	unsigned long start_pgoff = entryc->pgoff;
+	unsigned long start_old_pgoff = 0;
+	unsigned int num = entryc->num_pages;
+	unsigned int num_free = 0;
+	unsigned long curr_pgoff;
+	int i;
+	int ret = 0;
+	timing_t assign_time;
+
+	NOVA_START_TIMING(assign_t, assign_time);
+	for (i = 0; i < num; i++) {
+		curr_pgoff = start_pgoff + i;
+
+		pentry = radix_tree_lookup_slot(&sih->tree, curr_pgoff);
+		if (pentry) {
+			old_entry = radix_tree_deref_slot(pentry);
+			if (old_entry != start_old_entry) {
+				if (start_old_entry && free)
+					nova_free_old_entry(sb, sih,
+							start_old_entry,
+							start_old_pgoff,
+							num_free, false,
+							entryc->epoch_id);
+				nova_invalidate_write_entry_parallel(sb,
+						start_old_entry, 1, 0, sih);
+
+				start_old_entry = old_entry;
+				start_old_pgoff = curr_pgoff;
+				num_free = 1;
+			} else {
+				num_free++;
+			}
+
+			radix_tree_replace_slot(&sih->tree, pentry, entry);
+		} else {
+			ret = radix_tree_insert(&sih->tree, curr_pgoff, entry);
+			if (ret) {
+				nova_dbg("%s: ERROR %d\n", __func__, ret);
+				goto out;
+			}
+		}
+	}
+
+	if (start_old_entry && free)
+		nova_free_old_entry(sb, sih, start_old_entry,
+					start_old_pgoff, num_free, false,
+					entryc->epoch_id);
+
+	nova_invalidate_write_entry_parallel(sb, start_old_entry, 1, 0, sih);
 
 out:
 	NOVA_END_TIMING(assign_t, assign_time);

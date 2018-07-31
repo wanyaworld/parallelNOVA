@@ -823,15 +823,10 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	queued_spin_lock(&sih->block_lock);
 	sih->i_blocks += (total_blocks << (data_bits - sb->s_blocksize_bits));
 	queued_spin_unlock(&sih->block_lock);
-
-	nova_memunlock_inode(sb, pi);
-
+    nova_memunlock_inode(sb, pi);
 	queued_spin_lock(&sih->tail_lock);
-
 	nova_update_inode(sb, inode, pi, &update, 1);
-
 	queued_spin_unlock(&sih->tail_lock);
-
 	//inode_unlock(inode);
 
 	nova_memlock_inode(sb, pi);

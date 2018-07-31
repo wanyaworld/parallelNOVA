@@ -323,6 +323,10 @@ int nova_assign_write_entry(struct super_block *sb,
 	struct nova_inode_info_header *sih,
 	struct nova_file_write_entry *entry,
 	struct nova_file_write_entry *entryc, bool free);
+int nova_assign_write_entry_parallel(struct super_block *sb,
+	struct nova_inode_info_header *sih,
+	struct nova_file_write_entry *entry,
+	struct nova_file_write_entry *entryc, bool free);
 
 
 void nova_print_curr_log_page(struct super_block *sb, u64 curr);

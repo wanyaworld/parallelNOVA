@@ -223,7 +223,7 @@ int nova_reassign_file_tree_parallel(struct super_block *sb,
 			continue;
 		}
 
-		nova_assign_write_entry(sb, sih, entry, entryc, true);
+		nova_assign_write_entry_parallel(sb, sih, entry, entryc, true);
 		curr_p += entry_size;
 	}
 

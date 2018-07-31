@@ -111,6 +111,7 @@ struct nova_inode_info_header {
 	struct qspinlock block_lock;
 	struct qspinlock tree_lock;
 	struct qspinlock inval_lock;
+	struct qspinlock entry_lock;
 		
 };
 
