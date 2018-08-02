@@ -451,6 +451,7 @@ static int nova_update_log_entry(struct super_block *sb, struct inode *inode,
 	void *entry, struct nova_log_entry_info *entry_info)
 {
 	enum nova_entry_type type = entry_info->type;
+	struct nova_file_write_entry *curr;
 
 	switch (type) {
 	case FILE_WRITE:
@@ -459,6 +460,13 @@ static int nova_update_log_entry(struct super_block *sb, struct inode *inode,
 		else
 			memcpy_to_pmem_nocache(entry, entry_info->data,
 				sizeof(struct nova_file_write_entry));
+		/* Commit the file write entry.
+		   We need mfence() and flush(). 
+		   To do: Check if it is a huge overhead */
+		curr = (struct nova_file_write_entry *)entry;
+		PERSISTENT_BARRIER();
+		curr->committed = 1;
+		nova_flush_buffer(&curr->committed, CACHELINE_SIZE, 1);
 		break;
 	case DIR_LOG:
 		if (entry_info->inplace)
@@ -1360,7 +1368,7 @@ int nova_allocate_inode_log_pages(struct super_block *sb,
 	int ret_pages = 0;
 
 	allocated = nova_new_log_blocks(sb, sih, &new_inode_blocknr,
-			num_pages, ALLOC_NO_INIT, cpuid, from_tail);
+			num_pages, ALLOC_INIT_ZERO, cpuid, from_tail);
 
 	if (allocated <= 0) {
 		nova_err(sb, "ERROR: no inode log page available: %d %d\n",

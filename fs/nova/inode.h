@@ -259,7 +259,7 @@ static inline void nova_update_inode(struct super_block *sb,
 	sih->alter_log_tail = update->alter_tail;
 
     /* To do: Postpone nvm tail update for parallelism */
-	nova_update_tail(pi, update->tail);
+	//nova_update_tail(pi, update->tail);
 
 	if (metadata_csum)
 		nova_update_alter_tail(pi, update->alter_tail);

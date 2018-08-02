@@ -651,6 +651,10 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	u64 curr_p, new_tail;
 	size_t log_entry_size;
 	int extended = 0;
+	/* For periodic pmem tail update */
+	u64 curr_tail, curr_sih_tail;
+	void *curr_addr;
+	struct nova_file_write_entry *curr_entry;
 
 	if (len == 0)
 		return 0;
@@ -818,17 +822,47 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 			begin_tail = update.curr_entry;
 	}
 
+	/* Only single thread perfomrs periodic pmem tail update */
+	if(queued_spin_trylock(&sih->alloc_lock) == 0) goto updated;
+	/* Update tail periodically */
+	if(is_last_entry(update.tail, log_entry_size)){
+		queued_spin_lock(&sih->tail_lock);
+		curr_tail = pi->log_tail;
+		curr_sih_tail = sih->log_tail;
+		queued_spin_unlock(&sih->tail_lock);
+		while(curr_tail != curr_sih_tail){
+			int cnt = 0;
+			if (cnt == 100) break;
+			curr_addr = (void *)nova_get_block(sb, curr_tail);
+			curr_entry = (struct nova_file_write_entry *)curr_addr;
+
+			if(curr_entry->committed != 1)
+				break;
+
+			if(is_last_entry(curr_tail, log_entry_size))
+				curr_tail = next_log_page(sb, curr_tail);	
+
+			else
+				curr_tail += log_entry_size;
+			cnt++;
+		}
+		/* We need mfence() and flush() */				
+		PERSISTENT_BARRIER();
+		pi->log_tail = curr_tail;
+		nova_flush_buffer(&pi->log_tail, CACHELINE_SIZE, 1);
+	}
+	queued_spin_unlock(&sih->alloc_lock);
+
+updated:
 	data_bits = blk_type_to_shift[sih->i_blk_type];
-	//inode_lock(inode);
 	queued_spin_lock(&sih->block_lock);
 	sih->i_blocks += (total_blocks << (data_bits - sb->s_blocksize_bits));
 	queued_spin_unlock(&sih->block_lock);
-    nova_memunlock_inode(sb, pi);
+
+	nova_memunlock_inode(sb, pi);
 	queued_spin_lock(&sih->tail_lock);
 	nova_update_inode(sb, inode, pi, &update, 1);
 	queued_spin_unlock(&sih->tail_lock);
-	//inode_unlock(inode);
-
 	nova_memlock_inode(sb, pi);
 
 	/* Free the overlap blocks after the write is committed */
