@@ -722,7 +722,7 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 		update.alter_tail = sih->alter_log_tail;
 		/* Get the size of FILE_WRITE entry */
 		log_entry_size = nova_get_log_entry_size(sb, 1);
-		curr_p = nova_get_append_head(sb, pi, sih, update.tail, log_entry_size, MAIN_LOG, 1, &extended);
+		curr_p = nova_get_append_head(sb, pi, sih, update.tail, log_entry_size, MAIN_LOG, 0, &extended);
 		sih->log_tail = new_tail = curr_p + log_entry_size;
 		queued_spin_unlock(&sih->tail_lock);
 
@@ -831,12 +831,6 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 		queued_spin_unlock(&sih->tail_lock);	
 		prv_tail = curr_tail;
 		while(curr_tail != curr_sih_tail){
-			curr_addr = (void *)nova_get_block(sb, curr_tail);
-			curr_entry = (struct nova_file_write_entry *)curr_addr;
-
-			if(curr_entry->committed != 1)
-				break;
-
 			if(is_last_entry(curr_tail, log_entry_size)){
 				prv_tail = curr_tail;
 				curr_tail = next_log_page(sb, curr_tail);
@@ -846,8 +840,13 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 					break;
 				}	
 			}
-			else
-				curr_tail += log_entry_size;
+			curr_addr = (void *)nova_get_block(sb, curr_tail);
+			curr_entry = (struct nova_file_write_entry *)curr_addr;
+
+			if(curr_entry->committed != 1)
+				break;
+
+			curr_tail += log_entry_size;
 		}
 		/* We need mfence() and flush() */				
 		PERSISTENT_BARRIER();
