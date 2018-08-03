@@ -652,7 +652,7 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	size_t log_entry_size;
 	int extended = 0;
 	/* For periodic pmem tail update */
-	u64 curr_tail, curr_sih_tail;
+	u64 curr_tail, prv_tail, curr_sih_tail;
 	void *curr_addr;
 	struct nova_file_write_entry *curr_entry;
 
@@ -730,11 +730,9 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 		start_blk = pos >> sb->s_blocksize_bits;
 
 		/* don't zero-out the allocated blocks */
-		//queued_spin_lock(&sih->alloc_lock);
 		allocated = nova_new_data_blocks(sb, sih, &blocknr, start_blk,
 				num_blocks, ALLOC_NO_INIT, ANY_CPU,
 				ALLOC_FROM_HEAD);
-		//queued_spin_unlock(&sih->alloc_lock);
 
 		nova_dbg_verbose("%s: alloc %d blocks @ %lu\n", __func__,
 				allocated, blocknr);
@@ -822,29 +820,34 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 			begin_tail = update.curr_entry;
 	}
 
-	/* Only single thread perfomrs periodic pmem tail update */
-	if(queued_spin_trylock(&sih->alloc_lock) == 0) goto updated;
+
 	/* Update tail periodically */
 	if(is_last_entry(update.tail, log_entry_size)){
+		/* Only single thread performs periodic pmem tail update */
+		if(queued_spin_trylock(&sih->alloc_lock) == 0) goto updated;
 		queued_spin_lock(&sih->tail_lock);
 		curr_tail = pi->log_tail;
 		curr_sih_tail = sih->log_tail;
-		queued_spin_unlock(&sih->tail_lock);
+		queued_spin_unlock(&sih->tail_lock);	
+		prv_tail = curr_tail;
 		while(curr_tail != curr_sih_tail){
-			int cnt = 0;
-			if (cnt == 100) break;
 			curr_addr = (void *)nova_get_block(sb, curr_tail);
 			curr_entry = (struct nova_file_write_entry *)curr_addr;
 
 			if(curr_entry->committed != 1)
 				break;
 
-			if(is_last_entry(curr_tail, log_entry_size))
-				curr_tail = next_log_page(sb, curr_tail);	
-
+			if(is_last_entry(curr_tail, log_entry_size)){
+				prv_tail = curr_tail;
+				curr_tail = next_log_page(sb, curr_tail);
+				/* Restore curr_tail if next log page is NULL */
+				if(curr_tail == 0){ 
+					curr_tail = prv_tail;
+					break;
+				}	
+			}
 			else
 				curr_tail += log_entry_size;
-			cnt++;
 		}
 		/* We need mfence() and flush() */				
 		PERSISTENT_BARRIER();
@@ -917,7 +920,7 @@ ssize_t nova_cow_file_write(struct file *filp,
 	struct address_space *mapping = filp->f_mapping;
 	struct inode *inode = mapping->host;
 	int ret;
-	timing_t time;
+	//timing_t time;
 
 
 	if (len == 0)
