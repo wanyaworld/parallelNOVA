@@ -244,9 +244,27 @@ static inline void nova_update_alter_tail(struct nova_inode *pi, u64 new_tail)
 }
 
 
-
 /* Update inode tails and checksums */
 static inline void nova_update_inode(struct super_block *sb,
+	struct inode *inode, struct nova_inode *pi,
+	struct nova_inode_update *update, int update_alter)
+{
+	struct nova_inode_info *si = NOVA_I(inode);
+	struct nova_inode_info_header *sih = &si->header;
+
+	sih->log_tail = update->tail;
+	sih->alter_log_tail = update->alter_tail;
+	nova_update_tail(pi, update->tail);
+	if (metadata_csum)
+		nova_update_alter_tail(pi, update->alter_tail);
+
+	nova_update_inode_checksum(pi);
+	if (inode && update_alter)
+		nova_update_alter_inode(sb, inode, pi);
+}
+
+/* Update inode tails and checksums */
+static inline void nova_update_inode_parallel(struct super_block *sb,
 	struct inode *inode, struct nova_inode *pi,
 	struct nova_inode_update *update, int update_alter)
 {

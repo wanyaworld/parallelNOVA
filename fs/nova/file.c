@@ -863,7 +863,7 @@ updated:
 
 	nova_memunlock_inode(sb, pi);
 	queued_spin_lock(&sih->tail_lock);
-	nova_update_inode(sb, inode, pi, &update, 1);
+	nova_update_inode_parallel(sb, inode, pi, &update, 1);
 	queued_spin_unlock(&sih->tail_lock);
 	nova_memlock_inode(sb, pi);
 
