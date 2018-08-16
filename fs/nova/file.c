@@ -706,9 +706,7 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	if (ret)
 		goto out;
 
-	//queued_spin_lock(&sih->time_lock);
 	inode->i_ctime = inode->i_mtime = current_time(inode);
-	//queued_spin_unlock(&sih->time_lock);
 	time = current_time(inode).tv_sec;
 
 	nova_dbgv("%s: inode %lu, offset %lld, count %lu\n",
@@ -783,14 +781,12 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 		sih->i_size = file_size;
 		queued_spin_unlock(&sih->size_lock);
 
-		//queued_spin_lock(&sih->log_lock);
 		nova_init_file_write_entry(sb, sih, &entry_data, epoch_id,
 				start_blk, allocated, blocknr, time,
 				file_size);
 
 		ret = nova_append_file_write_entry_parallel(sb, pi, inode,
 				&entry_data, &update, curr_p);
-		//queued_spin_unlock(&sih->log_lock);
 
 		if (ret) {
 			nova_dbg("%s: append inode entry failed\n", __func__);
@@ -868,7 +864,6 @@ updated:
 	nova_memlock_inode(sb, pi);
 
 	/* Free the overlap blocks after the write is committed */
-	//inode_lock(inode);
 	queued_spin_lock(&sih->tree_lock);
 	ret = nova_reassign_file_tree_parallel(sb, sih, begin_tail, new_tail);
 	if (ret){
@@ -878,14 +873,12 @@ updated:
 
 	inode->i_blocks = sih->i_blocks;
 	queued_spin_unlock(&sih->tree_lock);
-	//inode_unlock(inode);
 
 	ret = written;
 	NOVA_STATS_ADD(cow_write_breaks, step);
 	nova_dbgv("blocks: %lu, %lu\n", inode->i_blocks, sih->i_blocks);
 
 	*ppos = pos;
-	//inode_lock(inode);
 	queued_spin_lock(&sih->size_lock);
 	if (pos > inode->i_size) {
 		i_size_write(inode, pos);
