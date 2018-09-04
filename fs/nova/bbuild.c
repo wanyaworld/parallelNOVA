@@ -37,6 +37,7 @@
 void nova_init_header(struct super_block *sb,
 	struct nova_inode_info_header *sih, u16 i_mode)
 {
+	int i;
 	sih->log_pages = 0;
 	sih->i_size = 0;
 	sih->ino = 0;
@@ -72,6 +73,12 @@ void nova_init_header(struct super_block *sb,
 	sih->tree_lock.val.counter=0;
 	sih->inval_lock.val.counter=0;
 	sih->entry_lock.val.counter=0;
+
+	for(i=0; i<120; i++){
+		sih->tail_queue[i].cnt = 0;
+		sih->tail_queue[i].head = NULL;
+		sih->tail_queue[i].tail = NULL;
+	}
 }
 
 static inline void set_scan_bm(unsigned long bit,

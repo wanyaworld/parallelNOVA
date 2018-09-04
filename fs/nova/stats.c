@@ -585,10 +585,12 @@ void nova_print_nova_log_pages(struct super_block *sb,
 			sih->ino, curr, sih->log_tail);
 	curr_page = (struct nova_inode_log_page *)nova_get_block(sb, curr);
 	while ((next = curr_page->page_tail.next_page) != 0) {
+/*
 		nova_dbg("Current page 0x%llx, next page 0x%llx, %u entries, %u invalid\n",
 			curr >> PAGE_SHIFT, next >> PAGE_SHIFT,
 			curr_page->page_tail.num_entries,
 			curr_page->page_tail.invalid_entries);
+*/
 		if (sih->log_tail >> PAGE_SHIFT == curr >> PAGE_SHIFT)
 			used = count;
 		curr = next;

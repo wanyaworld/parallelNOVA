@@ -74,6 +74,19 @@ struct inode_table {
 /*
  * NOVA-specific inode state kept in DRAM
  */
+
+
+struct tail_pool{
+	u64 tail_addr;
+	struct tail_pool *next;
+	struct tail_pool *prev;	
+};
+
+struct tail_queue{
+	int cnt;
+	struct tail_pool *head;
+	struct tail_pool *tail;
+};
 struct nova_inode_info_header {
 	/* Map from file offsets to write log entries. */
 	struct radix_tree_root tree;
@@ -112,7 +125,8 @@ struct nova_inode_info_header {
 	struct qspinlock tree_lock;
 	struct qspinlock inval_lock;
 	struct qspinlock entry_lock;
-		
+
+	struct tail_queue tail_queue[120];	
 };
 
 /* For rebuild purpose, temporarily store pi infomation */

@@ -21,24 +21,30 @@
 #include <linux/falloc.h>
 #include <asm/mman.h>
 #include <asm/atomic.h>
+//#include <asm-generic/atomic64.h>
 #include "nova.h"
 #include "inode.h"
 
-
+/*
 static inline int nova_can_set_blocksize_hint(struct inode *inode,
 		struct nova_inode *pi, loff_t new_size)
 {
 	struct nova_inode_info *si = NOVA_I(inode);
 	struct nova_inode_info_header *sih = &si->header;
+	atmmic64_t *v;
 
+	atomic64_set_return(v, 1);
+*/
 	/* Currently, we don't deallocate data blocks till the file is deleted.
 	 * So no changing blocksize hints once allocation is done.
 	 */
+/*
 	if (sih->i_size > 0)
 		return 0;
 	return 1;
 }
-
+*/
+/*
 int nova_set_blocksize_hint(struct super_block *sb, struct inode *inode,
 		struct nova_inode *pi, loff_t new_size)
 {
@@ -47,17 +53,17 @@ int nova_set_blocksize_hint(struct super_block *sb, struct inode *inode,
 	if (!nova_can_set_blocksize_hint(inode, pi, new_size))
 		return 0;
 
-	if (new_size >= 0x40000000) {   /* 1G */
+	if (new_size >= 0x40000000) {   // 1G 
 		block_type = NOVA_BLOCK_TYPE_1G;
 		goto hint_set;
 	}
 
-	if (new_size >= 0x200000) {     /* 2M */
+	if (new_size >= 0x200000) {     // 2M 
 		block_type = NOVA_BLOCK_TYPE_2M;
 		goto hint_set;
 	}
 
-	/* defaulting to 4K */
+	// defaulting to 4K 
 	block_type = NOVA_BLOCK_TYPE_4K;
 
 hint_set:
@@ -70,7 +76,7 @@ hint_set:
 	nova_memlock_inode(sb, pi);
 	return 0;
 }
-
+*/
 static loff_t nova_llseek(struct file *file, loff_t offset, int origin)
 {
 	struct inode *inode = file->f_path.dentry->d_inode;
@@ -655,6 +661,7 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	u64 curr_tail, prv_tail, curr_sih_tail;
 	void *curr_addr;
 	struct nova_file_write_entry *curr_entry;
+	int cpuid, loop = 5;
 
 	if (len == 0)
 		return 0;
@@ -688,8 +695,8 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	total_blocks = num_blocks;
 	start_blk = pos >> sb->s_blocksize_bits;
 
-	range_lock_init(&nova_inode_lock, start_blk, start_blk + num_blocks - 1);
-	range_write_lock(&(sih->range_lock_tree), &nova_inode_lock);
+	//range_lock_init(&nova_inode_lock, start_blk, start_blk + num_blocks - 1);
+	//range_write_lock(&(sih->range_lock_tree), &nova_inode_lock);
 
 	if (nova_check_overlap_vmas(sb, sih, start_blk, num_blocks)) {
 		nova_dbgv("COW write overlaps with vma: inode %lu, pgoff %lu, %lu blocks\n",
@@ -714,16 +721,52 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 
 	epoch_id = nova_get_epoch_id(sb);
 
-	while (num_blocks > 0) {
-		queued_spin_lock(&sih->tail_lock);
-		update.tail = sih->log_tail;
-		update.alter_tail = sih->alter_log_tail;
-		/* Get the size of FILE_WRITE entry */
-		log_entry_size = nova_get_log_entry_size(sb, 1);
-		curr_p = nova_get_append_head(sb, pi, sih, update.tail, log_entry_size, MAIN_LOG, 0, &extended);
-		sih->log_tail = new_tail = curr_p + log_entry_size;
-		queued_spin_unlock(&sih->tail_lock);
+	cpuid = nova_get_cpuid(sb);
+	log_entry_size = nova_get_log_entry_size(sb, 1);
 
+	//insert
+	if(cpuid == 0){	
+		while(loop--)
+			insert_tail_queue(sb, sih, pi, log_entry_size);
+	}
+	//pop
+	curr_p = pop_tail_queue(sih, cpuid);
+
+	if(curr_p == 0){
+		nova_dbg("jh dbg: queue empty cpu:%d \n", cpuid);
+		ret = 4096;
+		goto out;
+	}
+	update.tail = curr_p;
+	update.alter_tail = update.tail;
+	new_tail =  update.tail + log_entry_size;
+
+	while (num_blocks > 0) {
+		//queued_spin_lock(&sih->tail_lock);
+/*
+		if(is_last_entry(sih->log_tail, log_entry_size)){
+			queued_spin_lock(&sih->tail_lock);
+			if(!is_last_entry(sih->log_tail, log_entry_size)){
+				queued_spin_unlock(&sih->tail_lock);							
+				goto Notfin;
+			}
+			curr_p = nova_get_append_head(sb, pi, sih, sih->log_tail, log_entry_size, MAIN_LOG, 0, &extended);
+			update.tail = sih->log_tail = curr_p;
+			update.alter_tail = sih->alter_log_tail = curr_p;
+			new_tail = nova_atomic64_add_return(log_entry_size, &sih->log_tail);
+			queued_spin_unlock(&sih->tail_lock);			
+			goto next;
+		}
+Notfin:		
+		curr_p = nova_get_append_head(sb, pi, sih, sih->log_tail, log_entry_size, MAIN_LOG, 0, &extended);
+		new_tail = nova_atomic64_add_return(log_entry_size, &sih->log_tail);
+		update.tail = new_tail - log_entry_size;
+		update.alter_tail = sih->alter_log_tail;
+*/
+		/* Get the size of FILE_WRITE entry */
+		//curr_p = nova_get_append_head(sb, pi, sih, update.tail, log_entry_size, MAIN_LOG, 0, &extended);
+		//sih->log_tail = new_tail = curr_p + log_entry_size;
+		//queued_spin_unlock(&sih->tail_lock);
 		offset = pos & (nova_inode_blk_size(sih) - 1);
 		start_blk = pos >> sb->s_blocksize_bits;
 
@@ -898,7 +941,7 @@ out:
 	if (try_inplace)
 		return do_nova_inplace_file_write(filp, buf, len, ppos);
 
-	range_write_unlock(&(sih->range_lock_tree), &nova_inode_lock);
+//	range_write_unlock(&(sih->range_lock_tree), &nova_inode_lock);
 
 	return ret;
 }
@@ -922,7 +965,7 @@ ssize_t nova_cow_file_write(struct file *filp,
 	//NOVA_START_TIMING(inode_lock_t, time);
 	//inode_lock(inode);
 	//NOVA_END_TIMING(inode_lock_t, time);
-
+	
 	ret = do_nova_cow_file_write(filp, buf, len, ppos);
 
 	//inode_unlock(inode);
