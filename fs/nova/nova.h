@@ -544,10 +544,14 @@ nova_get_write_entry(struct super_block *sb,
 	return entry;
 }
 
-#define cpu_num 7
+#define cpu_num 15
 static inline void insert_tail_queue(struct super_block *sb, struct nova_inode_info_header *sih, struct nova_inode *pi, size_t entry_size)
 {
 	int i, extended = 0;
+	int qtail;
+	u64 ticket;
+	struct tail_queue *curr;
+/*
 	struct tail_pool **node;
 	struct tail_pool *curr;
 	
@@ -572,16 +576,33 @@ static inline void insert_tail_queue(struct super_block *sb, struct nova_inode_i
 			sih->tail_queue[i].cnt += 1;
 		}
 	}
+*/
+
+	for(i=0 ; i<cpu_num ; i++){
+		curr = sih->tail_queue[i];
+		if(curr->num < 50){
+			qtail = curr->tail;
+			ticket = nova_get_append_head(sb, pi, sih, sih->log_tail, entry_size, MAIN_LOG, 0, &extended);
+			sih->log_tail = ticket + entry_size;
+			//sih->tail_queue[i].data[qtail] = nova_get_append_head(sb, pi, sih, sih->log_tail, entry_size, MAIN_LOG, 0, &extended);
+			curr->data[qtail] = ticket;
+			curr->num += 1;
+			curr->tail = (qtail+1) & (49);
+		}
+	}	
+
 }
 
 static inline u64
 pop_tail_queue(struct nova_inode_info_header *sih, int cpuid)
 {
-	struct tail_pool *curr;	
+//	struct tail_pool *curr;	
 	u64 ret;	
-
-	//spin lock
+	int qhead;
+	struct tail_queue *curr;
+	//spin lock	
 	//while(sih->tail_queue[cpuid].head == NULL){}
+/*
 	if(sih->tail_queue[cpuid].head == NULL)
 		return 0;
 
@@ -599,9 +620,26 @@ pop_tail_queue(struct nova_inode_info_header *sih, int cpuid)
 	sih->tail_queue[cpuid].cnt -= 1;
 	ret = curr->tail_addr;
 	kfree(curr);
+*/
+	curr = sih->tail_queue[cpuid];
+	
+	nova_dbg("jh dbg: pop: %lu cpu:%d\n", ret, cpuid);
 
+
+	if(curr->num == 0)
+		return 0;
+//	while(sih->tail_queue[cpuid].num == 0){}
+
+	qhead = curr->head;
+	ret = curr->data[qhead];
+	curr->head = (qhead+1) & (49);
+	curr->num -= 1;
+	
+	//nova_dbg("jh dbg: pop: %lu cpu:%d\n", ret, cpuid);
+	
 	return ret;
 }
+/*
 static inline void clear_tail_queue(struct nova_inode_info_header *sih)
 {
 	int i;
@@ -616,6 +654,7 @@ static inline void clear_tail_queue(struct nova_inode_info_header *sih)
 		}
 	}
 }
+*/
 /*
  * Find data at a file offset (pgoff) in the data pointed to by a write log
  * entry.

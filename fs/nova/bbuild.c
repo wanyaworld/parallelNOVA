@@ -73,11 +73,14 @@ void nova_init_header(struct super_block *sb,
 	sih->tree_lock.val.counter=0;
 	sih->inval_lock.val.counter=0;
 	sih->entry_lock.val.counter=0;
-
+	
+	//for(i=0; i<120; i++){
+	
 	for(i=0; i<120; i++){
-		sih->tail_queue[i].cnt = 0;
-		sih->tail_queue[i].head = NULL;
-		sih->tail_queue[i].tail = NULL;
+		sih->tail_queue[i] = kzalloc(sizeof(struct tail_queue), GFP_KERNEL);
+		sih->tail_queue[i]->head = 0;
+		sih->tail_queue[i]->tail = 0;
+		sih->tail_queue[i]->num = 0;
 	}
 }
 

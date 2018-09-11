@@ -1,0 +1,165 @@
+[1mdiff --git a/fs/nova/bbuild.c b/fs/nova/bbuild.c[m
+[1mindex 99e6aff..cf890ba 100644[m
+[1m--- a/fs/nova/bbuild.c[m
+[1m+++ b/fs/nova/bbuild.c[m
+[36m@@ -73,11 +73,14 @@[m [mvoid nova_init_header(struct super_block *sb,[m
+ 	sih->tree_lock.val.counter=0;[m
+ 	sih->inval_lock.val.counter=0;[m
+ 	sih->entry_lock.val.counter=0;[m
+[31m-[m
+[32m+[m[41m	[m
+[32m+[m	[32m//for(i=0; i<120; i++){[m
+[32m+[m[41m	[m
+ 	for(i=0; i<120; i++){[m
+[31m-		sih->tail_queue[i].cnt = 0;[m
+[31m-		sih->tail_queue[i].head = NULL;[m
+[31m-		sih->tail_queue[i].tail = NULL;[m
+[32m+[m		[32msih->tail_queue[i] = kzalloc(sizeof(struct tail_queue), GFP_KERNEL);[m
+[32m+[m		[32msih->tail_queue[i]->head = 0;[m
+[32m+[m		[32msih->tail_queue[i]->tail = 0;[m
+[32m+[m		[32msih->tail_queue[i]->num = 0;[m
+ 	}[m
+ }[m
+ [m
+[1mdiff --git a/fs/nova/file.c b/fs/nova/file.c[m
+[1mindex 2f96a1f..42dd7c9 100644[m
+[1m--- a/fs/nova/file.c[m
+[1m+++ b/fs/nova/file.c[m
+[36m@@ -661,7 +661,7 @@[m [mstatic ssize_t do_nova_cow_file_write(struct file *filp,[m
+ 	u64 curr_tail, prv_tail, curr_sih_tail;[m
+ 	void *curr_addr;[m
+ 	struct nova_file_write_entry *curr_entry;[m
+[31m-	int cpuid, loop = 5;[m
+[32m+[m	[32mint cpuid, loop = 40;[m
+ [m
+ 	if (len == 0)[m
+ 		return 0;[m
+[36m@@ -723,7 +723,6 @@[m [mstatic ssize_t do_nova_cow_file_write(struct file *filp,[m
+ [m
+ 	cpuid = nova_get_cpuid(sb);[m
+ 	log_entry_size = nova_get_log_entry_size(sb, 1);[m
+[31m-[m
+ 	//insert[m
+ 	if(cpuid == 0){	[m
+ 		while(loop--)[m
+[1mdiff --git a/fs/nova/inode.h b/fs/nova/inode.h[m
+[1mindex 8ebba22..2b16464 100644[m
+[1m--- a/fs/nova/inode.h[m
+[1m+++ b/fs/nova/inode.h[m
+[36m@@ -81,11 +81,16 @@[m [mstruct tail_pool{[m
+ 	struct tail_pool *next;[m
+ 	struct tail_pool *prev;	[m
+ };[m
+[31m-[m
+ struct tail_queue{[m
+[31m-	int cnt;[m
+[32m+[m	[32mint head;[m
+[32m+[m	[32mint tail;[m
+[32m+[m	[32mint num;[m
+[32m+[m[32m/*[m
+ 	struct tail_pool *head;[m
+ 	struct tail_pool *tail;[m
+[32m+[m[32m*/[m
+[32m+[m	[32m//u64 data[queue_max_size];[m
+[32m+[m	[32mu64 data[50];[m
+ };[m
+ struct nova_inode_info_header {[m
+ 	/* Map from file offsets to write log entries. */[m
+[36m@@ -126,7 +131,8 @@[m [mstruct nova_inode_info_header {[m
+ 	struct qspinlock inval_lock;[m
+ 	struct qspinlock entry_lock;[m
+ [m
+[31m-	struct tail_queue tail_queue[120];	[m
+[32m+[m	[32m//struct tail_queue tail_queue[120];[m[41m	[m
+[32m+[m	[32mstruct tail_queue *tail_queue[120];[m[41m	[m
+ };[m
+ [m
+ /* For rebuild purpose, temporarily store pi infomation */[m
+[1mdiff --git a/fs/nova/nova.h b/fs/nova/nova.h[m
+[1mindex 8deb3d7..c24a92e 100644[m
+[1m--- a/fs/nova/nova.h[m
+[1m+++ b/fs/nova/nova.h[m
+[36m@@ -544,10 +544,14 @@[m [mnova_get_write_entry(struct super_block *sb,[m
+ 	return entry;[m
+ }[m
+ [m
+[31m-#define cpu_num 7[m
+[32m+[m[32m#define cpu_num 15[m
+ static inline void insert_tail_queue(struct super_block *sb, struct nova_inode_info_header *sih, struct nova_inode *pi, size_t entry_size)[m
+ {[m
+ 	int i, extended = 0;[m
+[32m+[m	[32mint qtail;[m
+[32m+[m	[32mu64 ticket;[m
+[32m+[m	[32mstruct tail_queue *curr;[m
+[32m+[m[32m/*[m
+ 	struct tail_pool **node;[m
+ 	struct tail_pool *curr;[m
+ 	[m
+[36m@@ -572,16 +576,33 @@[m [mstatic inline void insert_tail_queue(struct super_block *sb, struct nova_inode_i[m
+ 			sih->tail_queue[i].cnt += 1;[m
+ 		}[m
+ 	}[m
+[32m+[m[32m*/[m
+[32m+[m
+[32m+[m	[32mfor(i=0 ; i<cpu_num ; i++){[m
+[32m+[m		[32mcurr = sih->tail_queue[i];[m
+[32m+[m		[32mif(curr->num < 50){[m
+[32m+[m			[32mqtail = curr->tail;[m
+[32m+[m			[32mticket = nova_get_append_head(sb, pi, sih, sih->log_tail, entry_size, MAIN_LOG, 0, &extended);[m
+[32m+[m			[32msih->log_tail = ticket + entry_size;[m
+[32m+[m			[32m//sih->tail_queue[i].data[qtail] = nova_get_append_head(sb, pi, sih, sih->log_tail, entry_size, MAIN_LOG, 0, &extended);[m
+[32m+[m			[32mcurr->data[qtail] = ticket;[m
+[32m+[m			[32mcurr->num += 1;[m
+[32m+[m			[32mcurr->tail = (qtail+1) & (49);[m
+[32m+[m		[32m}[m
+[32m+[m	[32m}[m[41m	[m
+[32m+[m
+ }[m
+ [m
+ static inline u64[m
+ pop_tail_queue(struct nova_inode_info_header *sih, int cpuid)[m
+ {[m
+[31m-	struct tail_pool *curr;	[m
+[32m+[m[32m//	struct tail_pool *curr;[m[41m	[m
+ 	u64 ret;	[m
+[31m-[m
+[31m-	//spin lock[m
+[32m+[m	[32mint qhead;[m
+[32m+[m	[32mstruct tail_queue *curr;[m
+[32m+[m	[32m//spin lock[m[41m	[m
+ 	//while(sih->tail_queue[cpuid].head == NULL){}[m
+[32m+[m[32m/*[m
+ 	if(sih->tail_queue[cpuid].head == NULL)[m
+ 		return 0;[m
+ [m
+[36m@@ -599,9 +620,22 @@[m [mpop_tail_queue(struct nova_inode_info_header *sih, int cpuid)[m
+ 	sih->tail_queue[cpuid].cnt -= 1;[m
+ 	ret = curr->tail_addr;[m
+ 	kfree(curr);[m
+[32m+[m[32m*/[m
+[32m+[m	[32mcurr = sih->tail_queue[cpuid];[m
+[32m+[m	[32mif(curr->num == 0)[m
+[32m+[m		[32mreturn 0;[m
+[32m+[m[32m//	while(sih->tail_queue[cpuid].num == 0){}[m
+ [m
+[32m+[m	[32mqhead = curr->head;[m
+[32m+[m	[32mret = curr->data[qhead];[m
+[32m+[m	[32mcurr->head = (qhead+1) & (49);[m
+[32m+[m	[32mcurr->num -= 1;[m
+[32m+[m[41m	[m
+[32m+[m	[32m//nova_dbg("jh dbg: pop: %lu cpu:%d\n", ret, cpuid);[m
+[32m+[m[41m	[m
+ 	return ret;[m
+ }[m
+[32m+[m[32m/*[m
+ static inline void clear_tail_queue(struct nova_inode_info_header *sih)[m
+ {[m
+ 	int i;[m
+[36m@@ -616,6 +650,7 @@[m [mstatic inline void clear_tail_queue(struct nova_inode_info_header *sih)[m
+ 		}[m
+ 	}[m
+ }[m
+[32m+[m[32m*/[m
+ /*[m
+  * Find data at a file offset (pgoff) in the data pointed to by a write log[m
+  * entry.[m

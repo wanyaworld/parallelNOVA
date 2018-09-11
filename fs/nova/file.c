@@ -661,7 +661,7 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	u64 curr_tail, prv_tail, curr_sih_tail;
 	void *curr_addr;
 	struct nova_file_write_entry *curr_entry;
-	int cpuid, loop = 5;
+	int cpuid, loop = 40;
 
 	if (len == 0)
 		return 0;
@@ -723,7 +723,6 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 
 	cpuid = nova_get_cpuid(sb);
 	log_entry_size = nova_get_log_entry_size(sb, 1);
-
 	//insert
 	if(cpuid == 0){	
 		while(loop--)
