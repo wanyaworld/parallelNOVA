@@ -68,6 +68,7 @@ void nova_init_header(struct super_block *sb,
 	sih->alloc_lock.val.counter=0;
 	sih->tail_lock.val.counter=0;
 	sih->size_lock.val.counter=0;
+	sih->vsize_lock.val.counter=0;
 	sih->log_lock.val.counter=0;
 	sih->block_lock.val.counter=0;
 	sih->tree_lock.val.counter=0;

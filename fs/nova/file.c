@@ -661,7 +661,7 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	u64 curr_tail, prv_tail, curr_sih_tail;
 	void *curr_addr;
 	struct nova_file_write_entry *curr_entry;
-	int cpuid, loop = 40;
+	int cpuid, try = 10000;
 
 	if (len == 0)
 		return 0;
@@ -723,19 +723,26 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 
 	cpuid = nova_get_cpuid(sb);
 	log_entry_size = nova_get_log_entry_size(sb, 1);
-	//insert
-	if(cpuid == 0){	
-		while(loop--)
-			insert_tail_queue(sb, sih, pi, log_entry_size);
-	}
-	//pop
-	curr_p = pop_tail_queue(sih, cpuid);
 
-	if(curr_p == 0){
-		nova_dbg("jh dbg: queue empty cpu:%d \n", cpuid);
-		ret = 4096;
-		goto out;
+	if (cpuid == 0){	
+		insert_tail_queue(sb, sih, pi, log_entry_size);
 	}
+
+	while(1) {
+		curr_p = pop_tail_queue(sih, cpuid);
+
+		if (curr_p != 0)
+			break;
+
+		if (try-- <= 0){
+			nova_dbg("pop failed after %d trials\n", try);
+			ret = 4096;
+			goto out;
+		}
+	}
+	//else
+	//	nova_dbg("jh dbg: queue NOT empty cpu:%d \n", cpuid);
+
 	update.tail = curr_p;
 	update.alter_tail = update.tail;
 	new_tail =  update.tail + log_entry_size;
@@ -921,14 +928,14 @@ updated:
 	nova_dbgv("blocks: %lu, %lu\n", inode->i_blocks, sih->i_blocks);
 
 	*ppos = pos;
-	queued_spin_lock(&sih->size_lock);
+	queued_spin_lock(&sih->vsize_lock);
 	if (pos > inode->i_size) {
 		i_size_write(inode, pos);
 		//sih->i_size = pos;
 	}
 
 	sih->trans_id++;
-	queued_spin_unlock(&sih->size_lock);
+	queued_spin_unlock(&sih->vsize_lock);
 out:
 	if (ret < 0)
 		nova_cleanup_incomplete_write(sb, sih, blocknr, allocated,

@@ -90,7 +90,7 @@ struct tail_queue{
 	struct tail_pool *tail;
 */
 	//u64 data[queue_max_size];
-	u64 data[50];
+	u64 data[TAIL_POOL_SIZE];
 };
 struct nova_inode_info_header {
 	/* Map from file offsets to write log entries. */
@@ -125,6 +125,7 @@ struct nova_inode_info_header {
 	struct qspinlock alloc_lock;
 	struct qspinlock tail_lock;
 	struct qspinlock size_lock;
+	struct qspinlock vsize_lock;
 	struct qspinlock log_lock;
 	struct qspinlock block_lock;
 	struct qspinlock tree_lock;
@@ -288,8 +289,6 @@ static inline void nova_update_inode_parallel(struct super_block *sb,
 	struct inode *inode, struct nova_inode *pi,
 	struct nova_inode_update *update, int update_alter)
 {
-	struct nova_inode_info *si = NOVA_I(inode);
-	struct nova_inode_info_header *sih = &si->header;
 
     /* We do not need to update sih->log_tail,
         because we already did it */

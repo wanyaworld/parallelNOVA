@@ -143,6 +143,8 @@ extern unsigned int nova_dbgmask;
 #define	FREE_BATCH			(16)
 #define	DEAD_ZONE_BLOCKS		(256)
 
+#define TAIL_POOL_SIZE			50
+
 extern int measure_timing;
 extern int metadata_csum;
 extern int unsafe_metadata;
@@ -544,13 +546,13 @@ nova_get_write_entry(struct super_block *sb,
 	return entry;
 }
 
-#define cpu_num 15
+#define cpu_num 60
 static inline void insert_tail_queue(struct super_block *sb, struct nova_inode_info_header *sih, struct nova_inode *pi, size_t entry_size)
 {
-	int i, extended = 0;
-	int qtail;
+	int i, j, extended = 0;
+	int qtail, num = 5;
 	u64 ticket;
-	struct tail_queue *curr;
+	//struct tail_queue *curr;
 /*
 	struct tail_pool **node;
 	struct tail_pool *curr;
@@ -577,19 +579,24 @@ static inline void insert_tail_queue(struct super_block *sb, struct nova_inode_i
 		}
 	}
 */
-
-	for(i=0 ; i<cpu_num ; i++){
-		curr = sih->tail_queue[i];
-		if(curr->num < 50){
-			qtail = curr->tail;
-			ticket = nova_get_append_head(sb, pi, sih, sih->log_tail, entry_size, MAIN_LOG, 0, &extended);
-			sih->log_tail = ticket + entry_size;
-			//sih->tail_queue[i].data[qtail] = nova_get_append_head(sb, pi, sih, sih->log_tail, entry_size, MAIN_LOG, 0, &extended);
-			curr->data[qtail] = ticket;
-			curr->num += 1;
-			curr->tail = (qtail+1) & (49);
-		}
-	}	
+	for(i = 0 ; i < cpu_num ; i++){
+		for(j = 0 ; j < num ; j++){
+			//curr = sih->tail_queue[i];
+			//if(sih->tail_queue[i]->num < 50){
+			if ((sih->tail_queue[i]->head % TAIL_POOL_SIZE) != ((sih->tail_queue[i]->tail + 1) % TAIL_POOL_SIZE)){
+				qtail = sih->tail_queue[i]->tail;
+				ticket = nova_get_append_head(sb, pi, sih, sih->log_tail, entry_size, MAIN_LOG, 0, &extended);
+				sih->log_tail = ticket + entry_size;
+				//sih->tail_queue[i].data[qtail] = nova_get_append_head(sb, pi, sih, sih->log_tail, entry_size, MAIN_LOG, 0, &extended);
+				sih->tail_queue[i]->tail = (qtail + 1) % TAIL_POOL_SIZE;
+				sih->tail_queue[i]->data[qtail + 1] = ticket;
+				/* is .num needed? */
+				sih->tail_queue[i]->num += 1;
+			}
+			else
+				break;
+		}	
+	}
 
 }
 
@@ -599,7 +606,7 @@ pop_tail_queue(struct nova_inode_info_header *sih, int cpuid)
 //	struct tail_pool *curr;	
 	u64 ret;	
 	int qhead;
-	struct tail_queue *curr;
+	//struct tail_queue *curr;
 	//spin lock	
 	//while(sih->tail_queue[cpuid].head == NULL){}
 /*
@@ -621,19 +628,19 @@ pop_tail_queue(struct nova_inode_info_header *sih, int cpuid)
 	ret = curr->tail_addr;
 	kfree(curr);
 */
-	curr = sih->tail_queue[cpuid];
+	//curr = sih->tail_queue[cpuid];
 	
-	nova_dbg("jh dbg: pop: %lu cpu:%d\n", ret, cpuid);
-
-
-	if(curr->num == 0)
+	
+	//if(sih->tail_queue[cpuid]->num == 0)
+	if (sih->tail_queue[cpuid]->head == sih->tail_queue[cpuid]->tail)
 		return 0;
 //	while(sih->tail_queue[cpuid].num == 0){}
 
-	qhead = curr->head;
-	ret = curr->data[qhead];
-	curr->head = (qhead+1) & (49);
-	curr->num -= 1;
+	qhead = sih->tail_queue[cpuid]->head;
+	sih->tail_queue[cpuid]->head = (qhead + 1) % TAIL_POOL_SIZE;
+	ret = sih->tail_queue[cpuid]->data[qhead + 1];
+	/* is .num needed? */
+	sih->tail_queue[cpuid]->num -= 1;
 	
 	//nova_dbg("jh dbg: pop: %lu cpu:%d\n", ret, cpuid);
 	
