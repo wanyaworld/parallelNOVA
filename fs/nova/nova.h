@@ -546,7 +546,7 @@ nova_get_write_entry(struct super_block *sb,
 	return entry;
 }
 
-#define cpu_num 60
+#define cpu_num 15
 static inline void insert_tail_queue(struct super_block *sb, struct nova_inode_info_header *sih, struct nova_inode *pi, size_t entry_size)
 {
 	int i, j, extended = 0;

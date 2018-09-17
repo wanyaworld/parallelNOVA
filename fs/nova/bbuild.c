@@ -83,6 +83,7 @@ void nova_init_header(struct super_block *sb,
 		sih->tail_queue[i]->tail = 0;
 		sih->tail_queue[i]->num = 0;
 	}
+	sih->insert_thread.counter = -1;
 }
 
 static inline void set_scan_bm(unsigned long bit,

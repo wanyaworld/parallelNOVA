@@ -6,6 +6,7 @@ struct nova_inode;
 
 #include "super.h"
 #include "log.h"
+#include <linux/types.h>
 #include <linux/range_lock.h>
 #include <asm-generic/qspinlock.h>
 enum nova_new_inode_type {
@@ -133,7 +134,8 @@ struct nova_inode_info_header {
 	struct qspinlock entry_lock;
 
 	//struct tail_queue tail_queue[120];	
-	struct tail_queue *tail_queue[120];	
+	struct tail_queue *tail_queue[120];
+	atomic_t insert_thread;	
 };
 
 /* For rebuild purpose, temporarily store pi infomation */

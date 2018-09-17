@@ -21,30 +21,28 @@
 #include <linux/falloc.h>
 #include <asm/mman.h>
 #include <asm/atomic.h>
-//#include <asm-generic/atomic64.h>
+#include <asm/current.h>
 #include "nova.h"
 #include "inode.h"
 
-/*
+
 static inline int nova_can_set_blocksize_hint(struct inode *inode,
 		struct nova_inode *pi, loff_t new_size)
 {
 	struct nova_inode_info *si = NOVA_I(inode);
 	struct nova_inode_info_header *sih = &si->header;
-	atmmic64_t *v;
 
-	atomic64_set_return(v, 1);
-*/
+
 	/* Currently, we don't deallocate data blocks till the file is deleted.
 	 * So no changing blocksize hints once allocation is done.
 	 */
-/*
+
 	if (sih->i_size > 0)
 		return 0;
 	return 1;
 }
-*/
-/*
+
+
 int nova_set_blocksize_hint(struct super_block *sb, struct inode *inode,
 		struct nova_inode *pi, loff_t new_size)
 {
@@ -76,7 +74,7 @@ hint_set:
 	nova_memlock_inode(sb, pi);
 	return 0;
 }
-*/
+
 static loff_t nova_llseek(struct file *file, loff_t offset, int origin)
 {
 	struct inode *inode = file->f_path.dentry->d_inode;
@@ -653,16 +651,15 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	int try_inplace = 0;
 	u64 epoch_id;
 	u32 time;
-	struct range_lock nova_inode_lock;
 	u64 curr_p, new_tail;
 	size_t log_entry_size;
-	int extended = 0;
+	//int extended = 0;
 	/* For periodic pmem tail update */
 	u64 curr_tail, prv_tail, curr_sih_tail;
 	void *curr_addr;
 	struct nova_file_write_entry *curr_entry;
 	int cpuid, try = 10000;
-
+	struct task_struct *task = current;
 	if (len == 0)
 		return 0;
 
@@ -724,7 +721,9 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	cpuid = nova_get_cpuid(sb);
 	log_entry_size = nova_get_log_entry_size(sb, 1);
 
-	if (cpuid == 0){	
+	atomic_cmpxchg(&sih->insert_thread, -1, current->pid);
+
+	if (sih->insert_thread.counter == current->pid){	
 		insert_tail_queue(sb, sih, pi, log_entry_size);
 	}
 
@@ -948,7 +947,9 @@ out:
 		return do_nova_inplace_file_write(filp, buf, len, ppos);
 
 //	range_write_unlock(&(sih->range_lock_tree), &nova_inode_lock);
-
+	if (sih->insert_thread.counter == current->pid)
+		sih->insert_thread.counter = -1;
+	
 	return ret;
 }
 
