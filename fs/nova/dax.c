@@ -213,6 +213,14 @@ int nova_reassign_file_tree_parallel(struct super_block *sb,
 
 		if (metadata_csum == 0)
 			entryc = entry;
+
+		if (entry->committed != 1){
+			nova_dbg("%s: entry is not committed: %d\n",
+				__func__, entry->committed);
+			curr_p += entry_size;
+			continue;
+		}
+			
 		else if (!nova_verify_entry_csum(sb, entry, entryc))
 			return -EIO;
 
