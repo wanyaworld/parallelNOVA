@@ -143,6 +143,8 @@ extern unsigned int nova_dbgmask;
 #define	FREE_BATCH			(16)
 #define	DEAD_ZONE_BLOCKS		(256)
 
+#define MAX_NEW_TAILS	10
+
 extern int measure_timing;
 extern int metadata_csum;
 extern int unsafe_metadata;
@@ -991,7 +993,7 @@ void nova_init_file_write_entry(struct super_block *sb,
 int nova_reassign_file_tree(struct super_block *sb,
 	struct nova_inode_info_header *sih, u64 begin_tail);
 int nova_reassign_file_tree_parallel(struct super_block *sb,
-	struct nova_inode_info_header *sih, u64 begin_tail, u64 my_tail);
+	struct nova_inode_info_header *sih, unsigned long *begin_tail, unsigned long num_tails);
 unsigned long nova_check_existing_entry(struct super_block *sb,
 	struct inode *inode, unsigned long num_blocks, unsigned long start_blk,
 	struct nova_file_write_entry **ret_entry,

@@ -655,6 +655,9 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	u64 curr_tail, prv_tail, curr_sih_tail;
 	void *curr_addr;
 	struct nova_file_write_entry *curr_entry;
+	u64 *new_tails, *tmp_new_tails;
+	unsigned long num_new_tails = 0, size_new_tail_arr = MAX_NEW_TAILS;
+	int i;
 
 	if (len == 0)
 		return 0;
@@ -714,6 +717,8 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 
 	epoch_id = nova_get_epoch_id(sb);
 
+	new_tails = kmalloc(sizeof(u64) * size_new_tail_arr, GFP_KERNEL);
+
 	while (num_blocks > 0) {
 		queued_spin_lock(&sih->tail_lock);
 		update.tail = sih->log_tail;
@@ -724,6 +729,22 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 		sih->log_tail = new_tail = curr_p + log_entry_size;
 		queued_spin_unlock(&sih->tail_lock);
 
+		if (num_new_tails >= size_new_tail_arr){
+			nova_dbg("new tails array is full! expanding...inode: %ld, start:%lld, size:%lu, %lu >= %lu\n", inode->i_ino, *ppos, count, num_new_tails, size_new_tail_arr);
+			if (new_tails){
+				tmp_new_tails = kmalloc(sizeof(u64) * size_new_tail_arr * 2, GFP_KERNEL);
+				for (i = 0 ; i < size_new_tail_arr ; i++)
+					tmp_new_tails[i] = new_tails[i];
+				kfree(new_tails);
+				new_tails = tmp_new_tails;
+				size_new_tail_arr *= 2;
+			}
+			else{
+				nova_dbg("new_tails is full but it has never been allocated...\n");
+				goto out;
+			}
+		}
+		new_tails[num_new_tails++] = (unsigned long) curr_p;
 		offset = pos & (nova_inode_blk_size(sih) - 1);
 		start_blk = pos >> sb->s_blocksize_bits;
 
@@ -799,6 +820,8 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 			status = copied;
 			written += copied;
 			pos += copied;
+			if (pos < 0)
+				nova_dbg("pos is negative...%lld\n", pos);
 			buf += copied;
 			count -= copied;
 			num_blocks -= allocated;
@@ -865,7 +888,7 @@ updated:
 
 	/* Free the overlap blocks after the write is committed */
 	queued_spin_lock(&sih->tree_lock);
-	ret = nova_reassign_file_tree_parallel(sb, sih, begin_tail, new_tail);
+	ret = nova_reassign_file_tree_parallel(sb, sih, (unsigned long *) new_tails, num_new_tails);
 	if (ret){
 		queued_spin_unlock(&sih->tree_lock);
 		goto out;

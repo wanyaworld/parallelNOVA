@@ -186,22 +186,20 @@ int nova_reassign_file_tree(struct super_block *sb,
 }
 
 int nova_reassign_file_tree_parallel(struct super_block *sb,
-	struct nova_inode_info_header *sih, u64 begin_tail, u64 my_tail)
+	struct nova_inode_info_header *sih, unsigned long *begin_tail, unsigned long num_tails)
 {
 	void *addr;
 	struct nova_file_write_entry *entry;
 	struct nova_file_write_entry *entryc, entry_copy;
-	u64 curr_p = begin_tail;
-	size_t entry_size = sizeof(struct nova_file_write_entry);
+	u64 curr_p;
+	int i = 0;
 
 	entryc = (metadata_csum == 0) ? entry : &entry_copy;
 
     /* Iterate until update.tail, i.e., my_tail  
      * since we already stored the new tail into struct update */
-	while (curr_p && curr_p != my_tail) {
-		if (is_last_entry(curr_p, entry_size))
-			curr_p = next_log_page(sb, curr_p);
-
+	while (i < num_tails) {
+		curr_p = (u64) (begin_tail[i]);
 		if (curr_p == 0) {
 			nova_err(sb, "%s: File inode %lu log is NULL!\n",
 				__func__, sih->ino);
@@ -217,7 +215,7 @@ int nova_reassign_file_tree_parallel(struct super_block *sb,
 		if (entry->committed != 1){
 			nova_dbg("%s: entry is not committed: %d\n",
 				__func__, entry->committed);
-			curr_p += entry_size;
+			i++;
 			continue;
 		}
 			
@@ -227,12 +225,12 @@ int nova_reassign_file_tree_parallel(struct super_block *sb,
 		if (nova_get_entry_type(entryc) != FILE_WRITE) {
 			nova_dbg("%s: entry type is not write? %d\n",
 				__func__, nova_get_entry_type(entry));
-			curr_p += entry_size;
+			i++;
 			continue;
 		}
 
 		nova_assign_write_entry_parallel(sb, sih, entry, entryc, true);
-		curr_p += entry_size;
+		i++;
 	}
 
 	return 0;

@@ -457,7 +457,7 @@ u64 nova_print_log_entry(struct super_block *sb, u64 curr)
 		curr += sizeof(struct nova_snapshot_info_entry);
 		break;
 	case FILE_WRITE:
-		//nova_print_file_write_entry(sb, curr, addr);
+		nova_print_file_write_entry(sb, curr, addr);
 		curr += sizeof(struct nova_file_write_entry);
 		break;
 	case DIR_LOG:
