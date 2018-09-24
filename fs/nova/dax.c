@@ -196,8 +196,7 @@ int nova_reassign_file_tree_parallel(struct super_block *sb,
 
 	entryc = (metadata_csum == 0) ? entry : &entry_copy;
 
-    /* Iterate until update.tail, i.e., my_tail  
-     * since we already stored the new tail into struct update */
+	/* To do: use entry->commit for splitted write */
 	while (i < num_tails) {
 		curr_p = (u64) (begin_tail[i]);
 		if (curr_p == 0) {

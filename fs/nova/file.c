@@ -923,6 +923,9 @@ out:
 
 	range_write_unlock(&(sih->range_lock_tree), &nova_inode_lock);
 
+	if (new_tails)
+		kfree(new_tails);
+
 	return ret;
 }
 
