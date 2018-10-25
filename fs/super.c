@@ -1116,6 +1116,7 @@ struct dentry *mount_bdev(struct file_system_type *fs_type,
 		s->s_mode = mode;
 		snprintf(s->s_id, sizeof(s->s_id), "%pg", bdev);
 		sb_set_blocksize(s, block_size(bdev));
+		printk("jh blk size : %d\n",block_size(bdev));
 		error = fill_super(s, data, flags & MS_SILENT ? 1 : 0);
 		if (error) {
 			deactivate_locked_super(s);
