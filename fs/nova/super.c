@@ -51,6 +51,8 @@ int dram_struct_csum;
 int support_clwb;
 int inplace_data_updates;
 
+int cpu_num;
+
 module_param(measure_timing, int, 0444);
 MODULE_PARM_DESC(measure_timing, "Timing measurement");
 
@@ -74,6 +76,9 @@ MODULE_PARM_DESC(dram_struct_csum, "Protect key DRAM data structures with checks
 
 module_param(nova_dbgmask, int, 0444);
 MODULE_PARM_DESC(nova_dbgmask, "Control debugging output");
+
+module_param(cpu_num, int, 0444);
+MODULE_PARM_DESC(cpu_num, "# of cpus in ticket queue");
 
 static struct super_operations nova_sops;
 static const struct export_operations nova_export_ops;
@@ -633,10 +638,10 @@ static int nova_fill_super(struct super_block *sb, void *data, int silent)
 	}
 
 
-	nova_dbg("measure timing %d, metadata checksum %d, inplace update %d, wprotect %d, data checksum %d, data parity %d, DRAM checksum %d\n",
+	nova_dbg("measure timing %d, metadata checksum %d, inplace update %d, wprotect %d, data checksum %d, data parity %d, DRAM checksum %d, cpu_num %d\n",
 		measure_timing, metadata_csum,
 		inplace_data_updates, wprotect,	 data_csum,
-		data_parity, dram_struct_csum);
+		data_parity, dram_struct_csum, cpu_num);
 
 	get_random_bytes(&random, sizeof(u32));
 	atomic_set(&sbi->next_generation, random);
