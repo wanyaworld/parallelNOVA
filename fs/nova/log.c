@@ -122,9 +122,9 @@ static int nova_execute_invalidate_reassign_logentry_parallel(struct super_block
 
 	if (invalid) {
 		u64 addr = nova_get_addr_off(NOVA_SB(sb), entry);
-        queued_spin_lock(&sih->inval_lock);
+        	queued_spin_lock(&sih->inval_lock);
 		nova_inc_page_invalid_entries(sb, addr);
-        queued_spin_unlock(&sih->inval_lock);
+        	queued_spin_unlock(&sih->inval_lock);
 	}
 
 	nova_update_entry_csum(entry);
@@ -594,9 +594,9 @@ static int nova_append_log_entry_parallel(struct super_block *sb,
 	nova_memunlock_range(sb, entry, size);
 	memset(entry, 0, size);
 	nova_update_log_entry(sb, inode, entry, entry_info);
-    queued_spin_lock(&sih->entry_lock);
+    	queued_spin_lock(&sih->entry_lock);
 	nova_inc_page_num_entries(sb, curr_p);
-    queued_spin_unlock(&sih->entry_lock);
+    	queued_spin_unlock(&sih->entry_lock);
 	nova_memlock_range(sb, entry, size);
 	update->curr_entry = curr_p;
     /* We alreday updated update->tail */

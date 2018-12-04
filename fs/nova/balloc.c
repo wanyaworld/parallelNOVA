@@ -512,10 +512,9 @@ int nova_free_data_blocks(struct super_block *sb,
 	NOVA_START_TIMING(free_data_t, free_time);
 	ret = nova_free_blocks(sb, blocknr, num, sih->i_blk_type, 0);
 	if (ret) {
-		//nova_err(sb, "Inode %lu: free %d data block from %lu to %lu failed!\n",
-		//	 sih->ino, num, blocknr, blocknr + num - 1);
-		//nova_print_nova_log(sb, sih);
-		;
+		nova_err(sb, "Inode %lu: free %d data block from %lu to %lu failed!\n",
+			 sih->ino, num, blocknr, blocknr + num - 1);
+		nova_print_nova_log(sb, sih);
 	}
 	NOVA_END_TIMING(free_data_t, free_time);
 

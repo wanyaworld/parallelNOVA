@@ -839,10 +839,8 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 			begin_tail = update.curr_entry;
 	}
 
-
-	/* Update tail periodically */
+	/*
 	if(is_last_entry(update.tail, log_entry_size)){
-		/* Only single thread performs periodic pmem tail update */
 		if(queued_spin_trylock(&sih->alloc_lock) == 0) goto updated;
 		queued_spin_lock(&sih->tail_lock);
 		curr_tail = pi->log_tail;
@@ -853,7 +851,6 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 			if(is_last_entry(curr_tail, log_entry_size)){
 				prv_tail = curr_tail;
 				curr_tail = next_log_page(sb, curr_tail);
-				/* Restore curr_tail if next log page is NULL */
 				if(curr_tail == 0){ 
 					curr_tail = prv_tail;
 					break;
@@ -867,12 +864,12 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 
 			curr_tail += log_entry_size;
 		}
-		/* We need mfence() and flush() */				
 		PERSISTENT_BARRIER();
 		pi->log_tail = curr_tail;
 		nova_flush_buffer(&pi->log_tail, CACHELINE_SIZE, 1);
 	}
 	queued_spin_unlock(&sih->alloc_lock);
+	*/
 
 updated:
 	data_bits = blk_type_to_shift[sih->i_blk_type];
@@ -887,15 +884,11 @@ updated:
 	nova_memlock_inode(sb, pi);
 
 	/* Free the overlap blocks after the write is committed */
-	queued_spin_lock(&sih->tree_lock);
 	ret = nova_reassign_file_tree_parallel(sb, sih, (unsigned long *) new_tails, num_new_tails);
-	if (ret){
-		queued_spin_unlock(&sih->tree_lock);
+	if (ret)
 		goto out;
-	}
 
 	inode->i_blocks = sih->i_blocks;
-	queued_spin_unlock(&sih->tree_lock);
 
 	ret = written;
 	NOVA_STATS_ADD(cow_write_breaks, step);
