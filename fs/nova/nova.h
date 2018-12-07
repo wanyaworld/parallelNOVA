@@ -56,6 +56,13 @@
 #define PAGE_SHIFT_2M 21
 #define PAGE_SHIFT_1G 30
 
+/* For bitmap range locking */
+#define SEGMENT_SIZE 1024
+#define SEGMENT_SIZE_BITS 10
+#define SEGMENT_BITMAP_SIZE 1024*1024
+#define ULONG 64
+#define ULONG_BITS 6
+
 
 /*
  * Debug code

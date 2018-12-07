@@ -24,6 +24,64 @@
 #include "nova.h"
 #include "inode.h"
 
+/* I hope "size" is not too big, since setting bitmap takes pretty long */
+void nova_segment_lock(struct nova_inode_info_header *sih,
+                unsigned long long start, unsigned long long size)
+{
+        unsigned long long tmp, offset, start_blk, end_blk, total_blk;
+        unsigned long long *bitmap = sih->segment_bitmap_ptr;
+         start_blk = (start >> ULONG_BITS);
+        end_blk = ((start + size) >> ULONG_BITS);
+        total_blk = end_blk - start_blk + 1;
+ 	//nova_dbg("seg range is %llx - %llx\n", start, start + size);
+         while(1) {
+                offset = start & (ULONG - 1);
+                for (; offset < ULONG ; offset++) {
+                        if (size-- == 0)
+                                goto out;
+                        tmp = (unsigned long long)1 << offset;
+                        /* Atomicity is guaranteed for bit-wise operations */
+                        if ((bitmap[start_blk] & tmp) != 0){
+				//nova_dbg("%s: I am going to be blocked.. %12llx, %12llx, %5llx", __func__, tmp, bitmap[start_blk], start);
+                                return ;
+                        }
+                        bitmap[start_blk] |= tmp;
+			//nova_dbg("%s: seg lock: %12llx, %12llx, %5llx", __func__, tmp, bitmap[start_blk], start);
+                        start++;
+                }
+                start_blk++;
+        }
+out:
+        return ;
+}
+ void nova_segment_unlock(struct nova_inode_info_header *sih,
+                unsigned long long start, unsigned long long size)
+{
+        unsigned long long tmp, offset, start_blk, end_blk, total_blk;
+        unsigned long long *bitmap = sih->segment_bitmap_ptr;
+         start_blk = (start >> ULONG_BITS);
+        end_blk = ((start + size) >> ULONG_BITS);
+        total_blk = end_blk - start_blk + 1;
+         while(1) {
+                offset = start & (ULONG - 1);
+                for (; offset < ULONG ; offset++) {
+                        if (size-- == 0)
+                                goto out;
+                        tmp = (unsigned long long)1 << offset;
+                        /* Atomicity is guaranteed for bit-wise operations */
+                        if ((bitmap[start_blk] & tmp) == 0){
+				//nova_dbg("%s: The seg bit is not set.. %12llx, %12llx, %5llx", __func__, tmp, bitmap[start_blk], start);
+                                return ;
+                        }
+                        bitmap[start_blk] &= (~tmp);
+			//nova_dbg("%s: seg unlock: %12llx, %12llx, %5llx", __func__, tmp, bitmap[start_blk], start);
+                        start++;
+                }
+                start_blk++;
+        }
+out:
+        return ;
+}
 
 static inline int nova_can_set_blocksize_hint(struct inode *inode,
 		struct nova_inode *pi, loff_t new_size)
@@ -631,7 +689,7 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	ssize_t	    written = 0;
 	loff_t pos;
 	size_t count, offset, copied;
-	unsigned long start_blk, num_blocks;
+	unsigned long start_blk, end_blk, num_blocks;
 	unsigned long total_blocks;
 	unsigned long blocknr = 0;
 	unsigned int data_bits;
@@ -647,7 +705,6 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	int try_inplace = 0;
 	u64 epoch_id;
 	u32 time;
-	struct range_lock nova_inode_lock;
 	u64 curr_p, new_tail;
 	size_t log_entry_size;
 	int extended = 0;
@@ -658,6 +715,7 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	u64 *new_tails, *tmp_new_tails;
 	unsigned long num_new_tails = 0, size_new_tail_arr = MAX_NEW_TAILS;
 	int i;
+	unsigned long start_seg, end_seg;
 
 	if (len == 0)
 		return 0;
@@ -690,9 +748,12 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	num_blocks = ((count + offset - 1) >> sb->s_blocksize_bits) + 1;
 	total_blocks = num_blocks;
 	start_blk = pos >> sb->s_blocksize_bits;
+	end_blk = (pos + len) >> sb->s_blocksize_bits;
 
-	range_lock_init(&nova_inode_lock, start_blk, start_blk + num_blocks - 1);
-	range_write_lock(&(sih->range_lock_tree), &nova_inode_lock);
+ 	start_seg = start_blk >> SEGMENT_SIZE_BITS;
+	end_seg = end_blk >> SEGMENT_SIZE_BITS;
+
+	nova_segment_lock(sih, start_seg, end_seg - start_seg + 1);
 
 	if (nova_check_overlap_vmas(sb, sih, start_blk, num_blocks)) {
 		nova_dbgv("COW write overlaps with vma: inode %lu, pgoff %lu, %lu blocks\n",
@@ -914,7 +975,7 @@ out:
 	if (try_inplace)
 		return do_nova_inplace_file_write(filp, buf, len, ppos);
 
-	range_write_unlock(&(sih->range_lock_tree), &nova_inode_lock);
+	nova_segment_unlock(sih, start_seg, end_seg - start_seg + 1);
 
 	if (new_tails)
 		kfree(new_tails);
