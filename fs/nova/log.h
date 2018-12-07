@@ -85,6 +85,7 @@ struct nova_file_write_entry {
 	__le64	trans_id;
 	__le32	csumpadding;
 	__le32	csum;
+	atomic_t rw_cnt;	/* Atomic reader/writer counter */
 } __attribute((__packed__));
 
 #define WENTRY(entry)	((struct nova_file_write_entry *) entry)

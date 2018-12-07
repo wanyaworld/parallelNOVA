@@ -1045,6 +1045,15 @@ int nova_assign_write_entry_parallel(struct super_block *sb,
 		pentry = radix_tree_lookup_slot(&sih->tree, curr_pgoff);
 		if (pentry) {
 			old_entry = radix_tree_deref_slot(pentry);
+
+			/* Acquire writer side lock */
+			while(1) {
+				pentry = radix_tree_lookup_slot(&sih->tree, curr_pgoff);
+				old_entry = radix_tree_deref_slot(pentry);
+				if (atomic_cmpxchg(&old_entry->rw_cnt, 0, -1))
+					break;
+			}
+
 			if (old_entry != start_old_entry) {
 				if (start_old_entry && free)
 					nova_free_old_entry(sb, sih,

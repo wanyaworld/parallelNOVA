@@ -229,6 +229,11 @@ int nova_reassign_file_tree_parallel(struct super_block *sb,
 		}
 
 		nova_assign_write_entry_parallel(sb, sih, entry, entryc, true);
+
+		/* Unlock writer side lock, i.e. to zero. 
+		   Make sure r/w counter of entry being written was -1 */ 
+		while (!atomic_cmpxchg(&entry->rw_cnt, -1, 0))
+			nova_dbg("%s: New entry's rw_cnt is not -1!!!\n", __func__);
 		i++;
 	}
 
@@ -311,6 +316,9 @@ void nova_init_file_write_entry(struct super_block *sb,
 	entry->mtime = cpu_to_le32(time);
 
 	entry->size = file_size;
+
+	/* Reader/Writer counter is init'd to zero */
+	atomic_set(&entry->rw_cnt, -1);
 }
 
 int nova_protect_file_data(struct super_block *sb, struct inode *inode,
