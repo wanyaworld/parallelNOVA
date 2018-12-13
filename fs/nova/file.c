@@ -712,8 +712,8 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	start_blk = pos >> sb->s_blocksize_bits;
 	end_blk = (pos + len) >> sb->s_blocksize_bits;
 
- 	start_seg = start_blk >> SEGMENT_SIZE_BITS;
-	end_seg = end_blk >> SEGMENT_SIZE_BITS;
+ 	start_seg = start_blk >> NOVA_SEG_SIZE;
+	end_seg = end_blk >> NOVA_SEG_SIZE;
 
 	nova_range_lock(sih, start_seg, end_seg - start_seg + 1);
 
