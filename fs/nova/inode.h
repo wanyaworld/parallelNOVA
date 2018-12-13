@@ -101,8 +101,7 @@ struct nova_inode_info_header {
 	u64 alter_log_tail;		/* Alternate log tail pointer */
 	u8  i_blk_type;
 
-	void* segment_bitmap_ptr;	/* Bitmap for range checking */
-
+	
 	/* For synchronization of write threads */
 	struct qspinlock bitmap_lock;
 	struct qspinlock time_lock;
@@ -114,6 +113,7 @@ struct nova_inode_info_header {
 	struct qspinlock tree_lock;
 	struct qspinlock inval_lock;
 	struct qspinlock entry_lock;
+	struct qspinlock range_lock[NOVA_SEG_NUM];
 		
 };
 
