@@ -30,7 +30,8 @@ void nova_segment_lock(struct nova_inode_info_header *sih,
 {
         unsigned long long tmp, offset, start_blk, end_blk, total_blk;
         unsigned long long *bitmap = sih->segment_bitmap_ptr;
-         start_blk = (start >> ULONG_BITS);
+	int trials = 10000;
+        start_blk = (start >> ULONG_BITS);
         end_blk = ((start + size) >> ULONG_BITS);
         total_blk = end_blk - start_blk + 1;
  	//nova_dbg("seg range is %llx - %llx\n", start, start + size);
@@ -41,11 +42,14 @@ void nova_segment_lock(struct nova_inode_info_header *sih,
                                 goto out;
                         tmp = (unsigned long long)1 << offset;
                         /* Atomicity is guaranteed for bit-wise operations */
-                        if ((bitmap[start_blk] & tmp) != 0){
-				//nova_dbg("%s: I am going to be blocked.. %12llx, %12llx, %5llx", __func__, tmp, bitmap[start_blk], start);
-                                return ;
-                        }
-                        bitmap[start_blk] |= tmp;
+			while(1){
+				if (--trials) return;
+                        	if ((bitmap[start_blk] & tmp) == 0){
+                        		bitmap[start_blk] |= tmp;
+					//nova_dbg("%s: I am going to be blocked.. %12llx, %12llx, %5llx", __func__, tmp, bitmap[start_blk], start);
+                                	return ;
+                        	}
+			}
 			//nova_dbg("%s: seg lock: %12llx, %12llx, %5llx", __func__, tmp, bitmap[start_blk], start);
                         start++;
                 }
