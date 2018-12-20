@@ -7,7 +7,9 @@ struct nova_inode;
 #include "super.h"
 #include "log.h"
 #include <linux/range_lock.h>
-#include <asm-generic/qspinlock.h>
+//#include <asm-generic/qspinlock.h>
+#include <linux/spinlock.h>
+#include <linux/spinlock_types.h>
 enum nova_new_inode_type {
 	TYPE_CREATE = 0,
 	TYPE_MKNOD,
@@ -113,7 +115,7 @@ struct nova_inode_info_header {
 	struct qspinlock tree_lock;
 	struct qspinlock inval_lock;
 	struct qspinlock entry_lock;
-	struct qspinlock range_lock[NOVA_SEG_NUM];
+	struct spinlock range_lock[NOVA_SEG_NUM];
 		
 };
 

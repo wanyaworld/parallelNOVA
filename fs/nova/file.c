@@ -28,22 +28,28 @@
  void nova_range_lock(struct nova_inode_info_header *sih,
                 unsigned long long start, unsigned long long size)
 {
-        struct qspinlock *locks = sih->range_lock;
+        struct spinlock *locks = sih->range_lock;
 	int i;
 
-	for (i = 0 ; i < size ; i++)
-		queued_spin_lock(&locks[i + start]);
-{
+	for (i = 0 ; i < size ; i++) {
+		//nova_dbg("before lock %10ld %10ld\n", start, size);
+		spin_lock(&locks[i + start]);
+		//nova_dbg("after lock %10ld %10ld\n", start, size);
+	}
+}
 
 void nova_range_unlock(struct nova_inode_info_header *sih,
                 unsigned long long start, unsigned long long size)
 {
-        struct qspinlock *locks = sih->range_lock;
+        struct spinlock *locks = sih->range_lock;
 	int i;
 
-	for (i = 0 ; i < size ; i++)
-		queued_spin_unlock(&locks[i + start]);
-{
+	for (i = 0 ; i < size ; i++) {
+		//nova_dbg("before unlock %10ld %10ld\n", start, size);
+		spin_unlock(&locks[i + start]);
+		//nova_dbg("after unlock %10ld %10ld\n", start, size);
+	}
+}
 
 static inline int nova_can_set_blocksize_hint(struct inode *inode,
 		struct nova_inode *pi, loff_t new_size)
@@ -729,8 +735,9 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	/* offset in the actual block size block */
 
 	ret = file_remove_privs(filp);
-	if (ret)
+	if (ret) {
 		goto out;
+	}
 
 	inode->i_ctime = inode->i_mtime = current_time(inode);
 	time = current_time(inode).tv_sec;
@@ -908,8 +915,9 @@ updated:
 
 	/* Free the overlap blocks after the write is committed */
 	ret = nova_reassign_file_tree_parallel(sb, sih, (unsigned long *) new_tails, num_new_tails);
-	if (ret)
+	if (ret) {
 		goto out;
+	}
 
 	inode->i_blocks = sih->i_blocks;
 
@@ -934,8 +942,9 @@ out:
 	NOVA_END_TIMING(do_cow_write_t, cow_write_time);
 	NOVA_STATS_ADD(cow_write_bytes, written);
 
-	if (try_inplace)
+	if (try_inplace) {
 		return do_nova_inplace_file_write(filp, buf, len, ppos);
+	}
 
 	nova_range_unlock(sih, start_seg, end_seg - start_seg + 1);
 

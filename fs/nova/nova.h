@@ -56,8 +56,8 @@
 #define PAGE_SHIFT_2M 	21
 #define PAGE_SHIFT_1G 	30
 
-#define NOVA_SEG_SIZE	1024	/* 1024 pages per a segment */
-#define NOVA_SEG_NUM 	65546	/* max file size: 268 GB */
+#define NOVA_SEG_SIZE	10	/* 1024 pages per a segment */
+#define NOVA_SEG_NUM 	256	/* Restrict max file size */
 
 /*
  * Debug code

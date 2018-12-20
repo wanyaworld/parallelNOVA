@@ -76,7 +76,7 @@ void nova_init_header(struct super_block *sb,
 	sih->entry_lock.val.counter=0;
 
 	for (i = 0 ; i < NOVA_SEG_NUM ; i++)
-		sih->range_lock[i].val.counter = 0;
+		spin_lock_init(&sih->range_lock[i]);
 }
 
 static inline void set_scan_bm(unsigned long bit,
