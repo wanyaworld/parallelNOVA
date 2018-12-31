@@ -58,7 +58,7 @@
 
 /* For bitmap range locking */
 #define SEGMENT_SIZE 1024
-#define SEGMENT_SIZE_BITS 10
+#define SEGMENT_SIZE_BITS 0
 #define SEGMENT_BITMAP_SIZE 1024*1024
 #define ULONG 64
 #define ULONG_BITS 6

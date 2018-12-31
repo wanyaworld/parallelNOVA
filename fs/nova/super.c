@@ -633,8 +633,8 @@ static int nova_fill_super(struct super_block *sb, void *data, int silent)
 	}
 
 
-	nova_dbg("measure timing %d, metadata checksum %d, inplace update %d, wprotect %d, data checksum %d, data parity %d, DRAM checksum %d\n",
-		measure_timing, metadata_csum,
+	nova_dbg("seg: %d, measure timing %d, metadata checksum %d, inplace update %d, wprotect %d, data checksum %d, data parity %d, DRAM checksum %d\n",
+		SEGMENT_SIZE_BITS, measure_timing, metadata_csum,
 		inplace_data_updates, wprotect,	 data_csum,
 		data_parity, dram_struct_csum);
 

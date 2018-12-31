@@ -101,7 +101,7 @@ struct nova_inode_info_header {
 	u64 alter_log_tail;		/* Alternate log tail pointer */
 	u8  i_blk_type;
 
-	void* segment_bitmap_ptr;	/* Bitmap for range checking */
+	volatile unsigned long* segment_bitmap_ptr;	/* Bitmap for range checking */
 
 	/* For synchronization of write threads */
 	struct qspinlock bitmap_lock;

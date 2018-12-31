@@ -21,6 +21,7 @@
 #include <linux/falloc.h>
 #include <asm/mman.h>
 #include <asm/atomic.h>
+#include <asm/bitops.h>
 #include "nova.h"
 #include "inode.h"
 
@@ -28,62 +29,82 @@
 void nova_segment_lock(struct nova_inode_info_header *sih,
                 unsigned long long start, unsigned long long size)
 {
-        unsigned long long tmp, offset, start_blk, end_blk, total_blk;
-        unsigned long long *bitmap = sih->segment_bitmap_ptr;
-	int trials = 10000;
+        //unsigned long long start_blk, end_blk, total_blk;
+        int start_blk, end_blk, total_blk;
+        volatile unsigned long *bitmap = sih->segment_bitmap_ptr;
+	unsigned long offset;
+	unsigned long long size2, start2;
+	int trials = 10000, flag, flag2=0;
+
+	size2 = size;
+	start2 = start;
         start_blk = (start >> ULONG_BITS);
         end_blk = ((start + size) >> ULONG_BITS);
         total_blk = end_blk - start_blk + 1;
  	//nova_dbg("seg range is %llx - %llx\n", start, start + size);
-         while(1) {
-                offset = start & (ULONG - 1);
-                for (; offset < ULONG ; offset++) {
-                        if (size-- == 0)
-                                goto out;
-                        tmp = (unsigned long long)1 << offset;
-                        /* Atomicity is guaranteed for bit-wise operations */
-			while(1){
-				if (--trials) return;
-                        	if ((bitmap[start_blk] & tmp) == 0){
-                        		bitmap[start_blk] |= tmp;
-					//nova_dbg("%s: I am going to be blocked.. %12llx, %12llx, %5llx", __func__, tmp, bitmap[start_blk], start);
-                                	return ;
-                        	}
+	//nova_dbg("bitmap is %llx\n", bitmap[start_blk]);
+	//nova_dbg("start_blk is %llx\n", start_blk);
+ 	//nova_dbg("before lock: %llx - %llx\n", start, start + size);
+        while(1) {
+        	offset = start & (ULONG - 1);
+        	start_blk = (start >> ULONG_BITS);
+                if (size-- == 0)
+                	goto out;
+		trials = 10000;
+		flag = 0;
+		while(1){
+			/* Try at most 10000 times */
+			if (flag == 0) trials--;
+			if (trials == 0 && flag == 0) {
+				flag2 = 1;
+				flag = 1;	
+				nova_dbg("seg lock failed after 10000 times, start: %10ld, size: %10ld segs\n", start2, size2);
+				//break;
 			}
-			//nova_dbg("%s: seg lock: %12llx, %12llx, %5llx", __func__, tmp, bitmap[start_blk], start);
-                        start++;
-                }
-                start_blk++;
+			//nova_dbg("before: %d\n", trials);	
+			if (test_and_set_bit(offset, &bitmap[start_blk]) == 0)
+				break;
+ 			//nova_dbg("lock failed: %llx - %llx\n", start, start + size);
+		}
+		//nova_dbg("after: %d\n", trials);	
+		//nova_dbg("%s: seg lock: %12llx, %12llx, %5llx", __func__, tmp, bitmap[start_blk], start);
+                start++;
         }
+        
 out:
+	if (flag2 == 1)
+ 		nova_dbg("failed lock completed: %10ld - %10ld\n", start2, start2 + size2);
         return ;
 }
  void nova_segment_unlock(struct nova_inode_info_header *sih,
                 unsigned long long start, unsigned long long size)
 {
-        unsigned long long tmp, offset, start_blk, end_blk, total_blk;
-        unsigned long long *bitmap = sih->segment_bitmap_ptr;
-         start_blk = (start >> ULONG_BITS);
+        //unsigned long long start_blk, end_blk, total_blk;
+        int start_blk, end_blk, total_blk;
+        unsigned volatile long *bitmap = sih->segment_bitmap_ptr;
+	unsigned long offset;
+	unsigned long long size2, start2;
+
+	size2 = size;	start2 = start;
+        start_blk = (start >> ULONG_BITS);
         end_blk = ((start + size) >> ULONG_BITS);
         total_blk = end_blk - start_blk + 1;
-         while(1) {
-                offset = start & (ULONG - 1);
-                for (; offset < ULONG ; offset++) {
-                        if (size-- == 0)
-                                goto out;
-                        tmp = (unsigned long long)1 << offset;
-                        /* Atomicity is guaranteed for bit-wise operations */
-                        if ((bitmap[start_blk] & tmp) == 0){
-				//nova_dbg("%s: The seg bit is not set.. %12llx, %12llx, %5llx", __func__, tmp, bitmap[start_blk], start);
-                                return ;
-                        }
-                        bitmap[start_blk] &= (~tmp);
-			//nova_dbg("%s: seg unlock: %12llx, %12llx, %5llx", __func__, tmp, bitmap[start_blk], start);
+ 	//nova_dbg("before unlock: %llx - %llx\n", start, start + size);
+        while(1) {
+        	offset = start & (ULONG - 1);
+        	start_blk = (start >> ULONG_BITS);
+                if (size-- == 0)
+                	goto out;
+		if (test_and_clear_bit(offset, &bitmap[start_blk]) == 1) {
                         start++;
+			continue;
                 }
-                start_blk++;
+		nova_dbg("seg unlock: already clear... start: %10ld, size: %10ld segs\n", start2, size2);
+                start++;
+		//goto out;
         }
 out:
+ 	//nova_dbg("after unlock: %llx - %llx\n", start, start + size);
         return ;
 }
 
