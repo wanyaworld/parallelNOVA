@@ -22,6 +22,7 @@
 #include <asm/mman.h>
 #include <asm/atomic.h>
 #include <asm/bitops.h>
+#include <asm/barrier.h>
 #include "nova.h"
 #include "inode.h"
 
@@ -34,7 +35,7 @@ void nova_segment_lock(struct nova_inode_info_header *sih,
         volatile unsigned long *bitmap = sih->segment_bitmap_ptr;
 	unsigned long offset;
 	unsigned long long size2, start2;
-	int trials = 10000, flag, flag2=0;
+	unsigned long trials, flag, flag2=0, jh;
 
 	size2 = size;
 	start2 = start;
@@ -50,24 +51,31 @@ void nova_segment_lock(struct nova_inode_info_header *sih,
         	start_blk = (start >> ULONG_BITS);
                 if (size-- == 0)
                 	goto out;
-		trials = 10000;
+		trials = 0;
 		flag = 0;
 		while(1){
 			/* Try at most 10000 times */
-			if (flag == 0) trials--;
-			if (trials == 0 && flag == 0) {
+			jh = 1;
+			if (flag == 0) trials++;
+			if (trials % 10000 == 0 ) {
 				flag2 = 1;
-				flag = 1;	
-				nova_dbg("seg lock failed after 10000 times, start: %10ld, size: %10ld segs\n", start2, size2);
-				//break;
+				//flag = 1;	
+				nova_dbg("seg lock failed after %10ld times, start: %10ld, size: %10ld segs\n", trials, start2, size2);
+				if ( trials == 100000 )
+					break;
 			}
 			//nova_dbg("before: %d\n", trials);	
-			if (test_and_set_bit(offset, &bitmap[start_blk]) == 0)
+			smp_mb__before_atomic();
+			jh = test_and_set_bit(offset, &bitmap[start_blk]);
+			smp_mb__after_atomic();
+				
+			if (jh == 0)
 				break;
  			//nova_dbg("lock failed: %llx - %llx\n", start, start + size);
 		}
 		//nova_dbg("after: %d\n", trials);	
 		//nova_dbg("%s: seg lock: %12llx, %12llx, %5llx", __func__, tmp, bitmap[start_blk], start);
+		
                 start++;
         }
         
@@ -84,6 +92,7 @@ out:
         unsigned volatile long *bitmap = sih->segment_bitmap_ptr;
 	unsigned long offset;
 	unsigned long long size2, start2;
+	int jh;
 
 	size2 = size;	start2 = start;
         start_blk = (start >> ULONG_BITS);
@@ -91,11 +100,16 @@ out:
         total_blk = end_blk - start_blk + 1;
  	//nova_dbg("before unlock: %llx - %llx\n", start, start + size);
         while(1) {
+		jh = 0;
         	offset = start & (ULONG - 1);
         	start_blk = (start >> ULONG_BITS);
                 if (size-- == 0)
                 	goto out;
-		if (test_and_clear_bit(offset, &bitmap[start_blk]) == 1) {
+		smp_mb__before_atomic();
+		jh = test_and_clear_bit(offset, &bitmap[start_blk]);
+		smp_mb__after_atomic();
+
+		if (jh == 1) {
                         start++;
 			continue;
                 }
@@ -778,7 +792,7 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
  	start_seg = start_blk >> SEGMENT_SIZE_BITS;
 	end_seg = end_blk >> SEGMENT_SIZE_BITS;
 
-	nova_segment_lock(sih, start_seg, end_seg - start_seg + 1);
+	nova_segment_lock(sih, start_seg, end_seg - start_seg);
 
 	if (nova_check_overlap_vmas(sb, sih, start_blk, num_blocks)) {
 		nova_dbgv("COW write overlaps with vma: inode %lu, pgoff %lu, %lu blocks\n",
@@ -1000,7 +1014,7 @@ out:
 	if (try_inplace)
 		return do_nova_inplace_file_write(filp, buf, len, ppos);
 
-	nova_segment_unlock(sih, start_seg, end_seg - start_seg + 1);
+	nova_segment_unlock(sih, start_seg, end_seg - start_seg);
 
 	if (new_tails)
 		kfree(new_tails);
