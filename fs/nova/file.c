@@ -368,16 +368,35 @@ static struct iomap_ops nova_iomap_ops_nolock = {
 static ssize_t nova_dax_read_iter(struct kiocb *iocb, struct iov_iter *to)
 {
 	struct inode *inode = iocb->ki_filp->f_mapping->host;
+	struct nova_inode_info *si = NOVA_I(inode);
+	struct nova_inode_info_header *sih = &si->header;
+	struct super_block *sb = inode->i_sb;
+	struct range_lock nova_inode_lock;
+	loff_t pos;
+	size_t count, offset;
+	unsigned long start_blk, num_blocks;
 	ssize_t ret;
+
 	timing_t read_iter_time;
 
 	if (!iov_iter_count(to))
 		return 0;
 
 	NOVA_START_TIMING(read_iter_t, read_iter_time);
-	inode_lock_shared(inode);
+
+	pos = to->iov_offset;
+	count = to->count;
+	offset = pos & (sb->s_blocksize - 1);
+	num_blocks = ((count + offset - 1) >> sb->s_blocksize_bits) + 1;
+	start_blk = pos >> sb->s_blocksize_bits;
+
+	range_lock_init(&nova_inode_lock, start_blk, start_blk + num_blocks - 1);
+	range_read_lock(&(sih->range_lock_tree), &nova_inode_lock);
+
+	//inode_lock_shared(inode);
 	ret = dax_iomap_rw(iocb, to, &nova_iomap_ops_nolock);
-	inode_unlock_shared(inode);
+	//inode_unlock_shared(inode);
+	range_read_unlock(&(sih->range_lock_tree), &nova_inode_lock);
 
 	file_accessed(iocb->ki_filp);
 	NOVA_END_TIMING(read_iter_t, read_iter_time);
