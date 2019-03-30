@@ -749,7 +749,7 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 		queued_spin_unlock(&sih->tail_lock);
 
 		if (num_new_tails >= size_new_tail_arr){
-			nova_dbg("new tails array is full! expanding...inode: %ld, start:%lld, size:%lu, %lu >= %lu\n", inode->i_ino, *ppos, count, num_new_tails, size_new_tail_arr);
+			nova_dbgv("new tails array is full! expanding...inode: %ld, start:%lld, size:%lu, %lu >= %lu\n", inode->i_ino, *ppos, count, num_new_tails, size_new_tail_arr);
 			if (new_tails){
 				tmp_new_tails = kmalloc(sizeof(u64) * size_new_tail_arr * 2, GFP_KERNEL);
 				for (i = 0 ; i < size_new_tail_arr ; i++)
