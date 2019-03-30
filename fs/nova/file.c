@@ -711,7 +711,6 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	start_blk = pos >> sb->s_blocksize_bits;
 
 	range_lock_init(&nova_inode_lock, start_blk, start_blk + num_blocks - 1);
-	range_write_lock(&(sih->range_lock_tree), &nova_inode_lock);
 
 	if (nova_check_overlap_vmas(sb, sih, start_blk, num_blocks)) {
 		nova_dbgv("COW write overlaps with vma: inode %lu, pgoff %lu, %lu blocks\n",
@@ -903,6 +902,7 @@ updated:
 	nova_memlock_inode(sb, pi);
 
 	/* Free the overlap blocks after the write is committed */
+	range_write_lock(&(sih->range_lock_tree), &nova_inode_lock);
 	ret = nova_reassign_file_tree_parallel(sb, sih, (unsigned long *) new_tails, num_new_tails);
 	if (ret)
 		goto out;
