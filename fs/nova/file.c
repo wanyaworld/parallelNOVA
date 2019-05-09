@@ -484,14 +484,27 @@ do_dax_mapping_read(struct file *filp, char __user *buf,
 	struct nova_file_write_entry *entry;
 	struct nova_file_write_entry *entryc, entry_copy;
 	pgoff_t index, end_index;
-	unsigned long offset;
+	unsigned long offset,roffset;
 	loff_t isize, pos;
-	size_t copied = 0, error = 0;
+	size_t copied = 0, error = 0,count;
 	timing_t memcpy_time;
+	unsigned long start_blk, num_blocks;
+	unsigned long total_blocks;
+	struct range_lock nova_inode_lock;
+
+	count = len;
 
 	pos = *ppos;
 	index = pos >> PAGE_SHIFT;
 	offset = pos & ~PAGE_MASK;
+	
+	roffset = pos & (sb->s_blocksize - 1);
+	num_blocks = ((count + roffset - 1) >> sb->s_blocksize_bits) + 1;
+	total_blocks = num_blocks;
+	start_blk = pos >> sb->s_blocksize_bits;
+
+	range_lock_init(&nova_inode_lock, start_blk, start_blk + num_blocks - 1);
+	range_read_lock(&(sih->range_lock_tree), &nova_inode_lock);
 
 	if (!access_ok(VERIFY_WRITE, buf, len)) {
 		error = -EFAULT;
@@ -608,6 +621,7 @@ out:
 		file_accessed(filp);
 
 	NOVA_STATS_ADD(read_bytes, copied);
+	range_read_unlock(&(sih->range_lock_tree), &nova_inode_lock);
 
 	nova_dbgv("%s returned %zu\n", __func__, copied);
 	return copied ? copied : error;
@@ -626,9 +640,9 @@ static ssize_t nova_dax_file_read(struct file *filp, char __user *buf,
 	timing_t dax_read_time;
 
 	NOVA_START_TIMING(dax_read_t, dax_read_time);
-	inode_lock_shared(inode);
+	//inode_lock_shared(inode);
 	res = do_dax_mapping_read(filp, buf, len, ppos);
-	inode_unlock_shared(inode);
+	//inode_unlock_shared(inode);
 	NOVA_END_TIMING(dax_read_t, dax_read_time);
 	return res;
 }
